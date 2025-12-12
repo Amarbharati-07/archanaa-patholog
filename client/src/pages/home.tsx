@@ -1,6 +1,6 @@
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, Shield, Clock, Award, Truck } from "lucide-react";
+import { ArrowRight, Shield, Clock, Award, Truck, Star, Quote } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -8,6 +8,7 @@ import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
 import { StatsCounter } from "@/components/stats-counter";
 import { TestCard } from "@/components/test-card";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import type { Test } from "@shared/schema";
 
 const features = [
@@ -30,6 +31,37 @@ const features = [
     icon: Award,
     title: "Expert Team",
     description: "Experienced pathologists and trained technicians",
+  },
+];
+
+const customerReviews = [
+  {
+    name: "Priya Sharma",
+    initials: "PS",
+    rating: 5,
+    review: "Excellent service! The home collection was on time and the staff was very professional. Got my reports within 24 hours.",
+    location: "Mumbai",
+  },
+  {
+    name: "Rajesh Kumar",
+    initials: "RK",
+    rating: 5,
+    review: "Very impressed with the accuracy and quick turnaround. The online booking system made everything so convenient.",
+    location: "Delhi",
+  },
+  {
+    name: "Anita Desai",
+    initials: "AD",
+    rating: 5,
+    review: "Best diagnostic center in the city. The prices are reasonable and the quality of service is top-notch.",
+    location: "Bangalore",
+  },
+  {
+    name: "Vikram Singh",
+    initials: "VS",
+    rating: 4,
+    review: "Great experience overall. The technician was skilled and made the blood collection painless. Highly recommend!",
+    location: "Pune",
   },
 ];
 
@@ -147,6 +179,52 @@ export default function Home() {
               <ArrowRight className="h-5 w-5" />
             </Button>
           </Link>
+        </div>
+      </section>
+
+      <section className="py-16 bg-background">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="text-center mb-12">
+            <h2 className="text-2xl md:text-3xl font-semibold mb-4">What Our Customers Say</h2>
+            <p className="text-muted-foreground max-w-2xl mx-auto">
+              Trusted by thousands of patients for accurate and reliable diagnostic services
+            </p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {customerReviews.map((review, index) => (
+              <Card key={index} className="relative" data-testid={`card-review-${index}`}>
+                <CardContent className="pt-6">
+                  <Quote className="absolute top-4 right-4 h-8 w-8 text-primary/10" />
+                  <div className="flex items-center gap-3 mb-4">
+                    <Avatar>
+                      <AvatarFallback className="bg-primary/10 text-primary font-medium">
+                        {review.initials}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <p className="font-medium text-sm">{review.name}</p>
+                      <p className="text-xs text-muted-foreground">{review.location}</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-0.5 mb-3">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <Star
+                        key={i}
+                        className={`h-4 w-4 ${
+                          i < review.rating
+                            ? "fill-yellow-400 text-yellow-400"
+                            : "text-muted-foreground/30"
+                        }`}
+                      />
+                    ))}
+                  </div>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    {review.review}
+                  </p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         </div>
       </section>
 
