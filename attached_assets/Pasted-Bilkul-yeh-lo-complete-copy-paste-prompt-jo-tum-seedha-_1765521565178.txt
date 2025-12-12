@@ -1,0 +1,301 @@
+Bilkul — yeh lo **complete copy-paste prompt** jo tum seedha Replit par ya kisi bhi dev ko de sakte ho. Isme sab kuch hai: tech stack, .env keys, MongoDB models, API endpoints, frontend/UI specs (sky-blue + white), PDF/email/SMS templates, seed test list, sample API requests, Replit setup & run commands, aur security notes. Copy karo aur Replit ke project description / README me paste kar do.
+
+# COMPLETE PROMPT — **Archana Pathalogy Lab** (Replit + MongoDB — copy/paste ready)
+
+```
+Project Name: Archana Pathalogy Lab — Fullstack Web App (Replit + MongoDB)
+
+Goal (short):
+Build a secure, production-style pathology lab app for "Archana Pathalogy Lab" that supports:
+- Admin / Lab Technician: create patient records, search by name/phone/email/PatientID, enter machine test values, generate templated PDF reports, auto-upload to patient portal, email/SMS patient & referring doctor.
+- Patient: register/login (OTP via Email+SMS), browse tests, book tests (pickup or walk-in), track booking status, view & download reports.
+- All pages responsive and themed in SKY BLUE + WHITE with lab advertising, satisfied-customer counter, contact and live address.
+
+=== Tech stack ===
+- Frontend: React (Vite or CRA) + Tailwind CSS (or Bootstrap). Theme: Sky-Blue (#87CEEB) + White (#FFFFFF). Use Poppins/Inter font.
+- Backend: Node.js + Express
+- Database: MongoDB (use Atlas). ORM: Mongoose.
+- PDF generation: Puppeteer (render HTML template) or pdfkit (templated).
+- Email: nodemailer (SMTP).
+- SMS: Twilio (or any SMS gateway).
+- Auth: JWT + bcrypt (passwords hashed).
+- File storage: local `uploads/` (Replit) with optional S3 support.
+- OTP: store in DB with TTL (5 min).
+- Deployment: Replit for dev/demo; recommend moving uploads to S3 & DB to Atlas for production.
+
+=== .env (exact keys) ===
+Create a `.env` (or Replit secrets) with these keys:
+MONGODB_URI=your_mongodb_connection_string
+JWT_SECRET=long_random_secret
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_USER=smtp_user
+SMTP_PASS=smtp_pass
+TWILIO_ACCOUNT_SID=twilio_sid
+TWILIO_AUTH_TOKEN=twilio_token
+TWILIO_PHONE=+19123456789
+FROM_EMAIL=no-reply@archanapathology.com
+APP_BASE_URL=https://your-replit-or-domain
+ADMIN_EMAILS=admin1@archana.com,admin2@archana.com
+PORT=3000
+
+=== MongoDB Models (Mongoose) ===
+1) Patient
+{
+  patientId: String, // unique e.g. ARCH-20251212-0001
+  name: String,
+  email: { type:String, index: true, sparse:true },
+  phone: { type:String, index: true },
+  dob: Date,
+  gender: String,
+  address: String,
+  createdAt: Date,
+  notes: String
+}
+
+2) Test
+{
+  name: String,
+  code: String,
+  category: String,
+  price: Number,
+  duration: String, // e.g. "24 hours"
+  parameters: [{ name, unit, normalRange, paramCode }]
+}
+
+3) Result
+{
+  patientRef: ObjectId (Patient),
+  testRef: ObjectId (Test),
+  parameterResults: [{ parameterName, value, unit, normalRange }],
+  technician: String,
+  referredBy: String, // doctor email/name (optional)
+  collectedAt: Date,
+  createdAt: Date
+}
+
+4) Report
+{
+  patientRef: ObjectId,
+  resultRef: ObjectId,
+  pdfPath: String,
+  secureDownloadToken: String,
+  generatedAt: Date
+}
+
+5) Booking
+{
+  patientRef: ObjectId (nullable if guest),
+  guestName: String,
+  phone: String,
+  email: String,
+  tests: [testRef],
+  type: "pickup"|"walkin",
+  slot: Date,
+  status: "pending"|"collected"|"processing"|"report_ready"|"delivered",
+  createdAt: Date
+}
+
+6) Otp
+{
+  contact: String,
+  otp: String,
+  purpose: String, // "register"|"login"|"report_access"
+  createdAt: Date (expires after 300s)
+}
+
+=== Unique PatientID Logic ===
+On new patient creation:
+- Generate `patientId` as `ARCH-YYYYMMDD-XXXX` where XXXX is a sequence reset daily or short UUID. Save and show prominently.
+- Index email & phone for fast search and make patientId primary unique search key.
+
+=== API Endpoints (examples) ===
+
+Auth:
+POST /api/auth/request-otp  
+body: { contact: "+91XXXXXXXXXX" or "email@example.com", purpose: "register" }  
+-> send OTP to email+sms
+
+POST /api/auth/verify-otp  
+body: { contact, otp, purpose }  
+-> returns JWT on success and creates patient (if register)
+
+POST /api/auth/login  
+body: { emailOrPhone, password } -> JWT
+
+Patient:
+GET /api/tests  
+-> list of tests (frontend shows)
+
+POST /api/bookings  
+body: { patientId?, guestName?, phone, email, tests: [testCodes], type, slot }  
+-> create booking, send OTP verification, confirmation sms/email
+
+GET /api/bookings/:id  
+-> booking status
+
+Admin (protected):
+POST /api/admin/patient  // create or update patient
+GET /api/admin/patient/search?q=<term>  // search by patientId/name/phone/email -> return patient + history
+GET /api/admin/patient/:id/history
+POST /api/admin/result  // save result (body includes parameterResults)
+POST /api/admin/report/generate  // body: { resultId, includeDoctorEmail? } -> generate PDF, save, send notifications
+POST /api/admin/tests  // create/update test templates & parameters
+GET /api/admin/dashboard  // stats
+
+File & Downloads:
+GET /uploads/reports/:filename  // serve PDF (protected)
+GET /api/reports/download/:token  // validate token and return PDF (tokenized link, expires)
+
+=== Admin Create-Report Flow (UI + Backend) ===
+UI (Admin - Create Report page):
+- Top: single search field: accepts patientId / name / phone / email (partial). Shows results with unique patientId.
+- On select patient: show side panel with patient details + previous reports (list).
+- Main panel:
+  - Select Test (dropdown multi-select). On select load test.parameters dynamically.
+  - Render parameter rows: parameterName | input value | unit | normalRange | auto-flag if value outside range.
+  - Fields: Technician name, Referred doctor email (optional), Remarks.
+  - Buttons: Save Draft, Generate PDF & Publish.
+
+Backend on Generate:
+1. Validate data, save Result document.
+2. Render HTML template for report (use server-side templating or React SSR) and generate PDF (Puppeteer recommended).
+3. Save PDF to `/uploads/reports/<patientId>-<timestamp>.pdf`.
+4. Create Report document with secureDownloadToken (JWT or random token with expiry).
+5. Send email to patient with secure link: `${APP_BASE_URL}/reports/download/<token>`; send SMS with short link.
+6. If referredBy present and is email, email the doctor the PDF (or link).
+7. Update booking status if related booking exists.
+
+=== Email & SMS Templates ===
+
+Email (patient):
+Subject: Archana Pathalogy Lab — Your Test Report Ready ({{patientId}})
+HTML Body:
+Hello {{name}},<br/>
+Your report for {{testName}} is ready. Download securely: <a href="{{reportUrl}}">Download Report</a><br/>
+Report ID: {{reportId}}<br/>Generated on: {{date}}<br/><br/>Regards,<br/>Archana Pathalogy Lab<br/>Contact: +91-XXXXXXXXXX
+
+Email (doctor):
+Subject: Report — Patient {{name}} — Archana Pathalogy Lab
+Body: Doctor-friendly summary + attached PDF.
+
+SMS:
+Archana Pathalogy: Your report (ID: {{patientId}}) is ready. Visit {{shortUrl}} or login at {{APP_BASE_URL}}.
+
+=== Frontend UI Requirements (SKY BLUE + WHITE) ===
+Colors:
+- Primary: #87CEEB (sky blue)
+- Background: #FFFFFF (white)
+- Accent/dark: #005B96 for headings/buttons on hover
+Typography:
+- Use Poppins or Inter, accessible sizes
+Pages:
+- Landing / Home: hero with CTA "Book Test", trust badges (NABL/ISO), satisfied customers counter (e.g., 1200+), lab advertisement banner (carousel)
+- Tests: categories & test cards with price & turnaround
+- Book Test: multi-step (select tests → patient details/OTP → pickup/walk-in → confirm)
+- Login/Register: OTP via email & SMS; also email+password optional
+- Patient Dashboard: bookings list, reports list (download), profile
+- Admin Panel: left nav (Dashboard, Patients, Create Report, Uploaded Reports, Tests, Bookings, Settings)
+- Create Report: dynamic parameter inputs, preview PDF button
+- Footer: contact number, customer support email, lab live address, map embed
+
+Accessibility:
+- Mobile-first, buttons large, forms validated, proper labels.
+
+=== Seed Tests & Parameters (suggested list to seed DB) ===
+1. CBC (Hemoglobin, RBC, WBC, Platelets, MCV, MCH, MCHC)
+2. Blood Sugar Fasting (Fasting Blood Glucose)
+3. Blood Sugar PP (Postprandial)
+4. LFT (Bilirubin Total, SGOT, SGPT, ALP, Total Protein, Albumin)
+5. KFT (Urea, Creatinine, Uric Acid, Sodium, Potassium)
+6. Lipid Profile (Total Cholesterol, HDL, LDL, Triglycerides)
+7. Thyroid Profile (TSH, T3, T4)
+8. Vitamin D
+9. Urine Routine (pH, Protein, Sugar, RBC, WBC)
+10. HbA1c
+
+=== Security & Privacy Notes ===
+- Always run over HTTPS.
+- Hash passwords with bcrypt; JWT with reasonable expiry.
+- Tokenize report download links (short-lived).
+- Validate and sanitize all inputs.
+- Limit file upload types (PDF only) and size (e.g., <= 10MB).
+- Keep DB backups & logs; log audit (who generated which report).
+- Store minimum PII; encrypt sensitive fields if possible.
+
+=== Replit Setup & Run (dev) ===
+1. Create Replit project with Node.js template for server and separate React project for client (or monorepo).
+2. Add .env keys via Replit Secrets (do not commit .env).
+3. Install server deps:
+   npm init -y
+   npm i express mongoose bcrypt jsonwebtoken nodemailer multer puppeteer cors dotenv twilio
+4. Install dev: nodemon (optional)
+   npm i -D nodemon
+5. Server run script in package.json:
+   "start": "node server/index.js",
+   "dev": "nodemon server/index.js"
+6. For client (React + Tailwind), standard setup (vite or CRA). Run dev on separate port; in production build and serve static from server `public/`.
+7. Test endpoints via Postman or frontend.
+
+=== Example API requests ===
+
+Create patient (admin):
+POST /api/admin/patient
+body: { name, phone, email, dob, gender, address }
+
+Search patient:
+GET /api/admin/patient/search?q=ARCH-20251212
+
+Save result:
+POST /api/admin/result
+body:
+{
+  patientId: "ARCH-20251212-0001",
+  testCode: "CBC",
+  technician: "Ramesh",
+  referredBy: "dr.xyz@example.com",
+  collectedAt: "2025-12-12T09:30:00Z",
+  parameterResults: [
+    { parameterName:"Hemoglobin", value:"13.5", unit:"g/dL", normalRange:"12-16" },
+    ...
+  ]
+}
+
+Generate report & publish:
+POST /api/admin/report/generate
+body: { resultId: "<id>", publish: true }
+
+=== Testing Checklist (before go-live) ===
+- OTP (email + SMS) functions with real creds.
+- Patient search returns unique patientId and full history.
+- Generate PDF looks correct (header, table, signature).
+- Email to patient & doctor sends with attachments/links.
+- Secure download link works & expires.
+- Booking flow works from frontend to admin.
+- File upload restrictions & virus-scan policy (manually check).
+- Cross-browser + mobile responsive.
+
+=== Deliverables (what to expect when built) ===
+- Server code (Express + Mongoose) with all endpoints above.
+- Client code (React + Tailwind) with sky-blue theme and required pages.
+- Seed script to insert tests & sample patients.
+- README with Replit instructions and .env example.
+- Example .env template (without secrets).
+- Admin demo credentials.
+- Option: link to deployed Replit demo (once secrets configured).
+
+=== Optional Add-Ons (can be added later) ===
+- Online payments (Razorpay / Stripe).
+- Machine integration: accept CSV/JSON export from lab machines and bulk-import results.
+- Doctor portal (doctors can login to see referred patients).
+- Analytics dashboard and scheduled reports.
+
+---
+
+**Use this prompt exactly** in your Replit project description or share with a developer.  
+If you want, I can now **generate the complete server scaffold** (Express + Mongoose + endpoints + PDF template + seed data) and **React client scaffold** (sky-blue UI) as code you can drop into Replit—tell me “Yes, generate server” or “Yes, generate client” or “Generate both” and I'll produce full ready-to-run files (you'll only add .env secrets).
+
+---
+
+If you want the actual ready-to-deploy code now, I’ll produce the server scaffold first (Express + Mongoose + OTP/email/SMS + PDF generator + seed tests). Kaunsa chahiye — **server**, **client**, or **both**?
+```

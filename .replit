@@ -1,0 +1,53 @@
+modules = ["nodejs-20", "web"]
+run = "npm run dev"
+hidden = [".config", ".git", "generated-icon.png", "node_modules", "dist"]
+
+[nix]
+channel = "stable-25_05"
+
+[deployment]
+deploymentTarget = "autoscale"
+build = ["npm", "run", "build"]
+run = ["npm", "run", "start"]
+
+[[ports]]
+localPort = 5000
+externalPort = 80
+
+[env]
+PORT = "5000"
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start application"
+
+[[workflows.workflow]]
+name = "Start application"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run dev"
+waitForPort = 5000
+
+[agent]
+integrations = ["javascript_database:1.0.0"]
+
+[userenv]
+
+[userenv.shared]
+VITE_FIREBASE_API_KEY = "AIzaSyDNZdISB9aGCR7BkKc2KQ7KWouDizF2VfQ"
+VITE_FIREBASE_AUTH_DOMAIN = "archana-pathology-lab.firebaseapp.com"
+VITE_FIREBASE_PROJECT_ID = "archana-pathology-lab"
+VITE_FIREBASE_STORAGE_BUCKET = "archana-pathology-lab.firebasestorage.app"
+VITE_FIREBASE_MESSAGING_SENDER_ID = "947635719568"
+VITE_FIREBASE_APP_ID = "1:947635719568:web:4c559e7cc04989b9fa3715"
+VITE_FIREBASE_MEASUREMENT_ID = "G-3NLSTPZTDH"
