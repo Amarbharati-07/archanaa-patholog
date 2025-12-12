@@ -1,6 +1,6 @@
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, Shield, Clock, Award, Truck, Star, Quote } from "lucide-react";
+import { ArrowRight, Shield, Clock, Award, Truck, Star, Quote, FlaskConical, Users, BadgePercent } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -9,6 +9,15 @@ import { Footer } from "@/components/footer";
 import { StatsCounter } from "@/components/stats-counter";
 import { TestCard } from "@/components/test-card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from "@/components/ui/carousel";
+import Autoplay from "embla-carousel-autoplay";
+import { useRef } from "react";
 import type { Test } from "@shared/schema";
 
 const features = [
@@ -65,12 +74,59 @@ const customerReviews = [
   },
 ];
 
+const advertisementSlides = [
+  {
+    id: 1,
+    icon: FlaskConical,
+    title: "State-of-the-Art Laboratory",
+    subtitle: "Advanced Equipment & Technology",
+    description: "Our NABL accredited lab uses the latest diagnostic equipment for accurate and reliable results",
+    gradient: "from-blue-600 to-cyan-500",
+    cta: "Learn More",
+    link: "/tests",
+  },
+  {
+    id: 2,
+    icon: BadgePercent,
+    title: "Special Offers This Month",
+    subtitle: "Up to 30% OFF on Health Packages",
+    description: "Book comprehensive health checkups at discounted prices. Limited time offer!",
+    gradient: "from-emerald-600 to-teal-500",
+    cta: "View Offers",
+    link: "/tests",
+  },
+  {
+    id: 3,
+    icon: Users,
+    title: "Trusted by 15,000+ Customers",
+    subtitle: "Join Our Growing Family",
+    description: "Experience why thousands choose us for their diagnostic needs. Quality care you can trust.",
+    gradient: "from-purple-600 to-pink-500",
+    cta: "Book Now",
+    link: "/book",
+  },
+  {
+    id: 4,
+    icon: Truck,
+    title: "Free Home Collection",
+    subtitle: "Convenience at Your Doorstep",
+    description: "Skip the queue! Our trained phlebotomists will collect samples from your home at no extra cost.",
+    gradient: "from-orange-500 to-red-500",
+    cta: "Schedule Now",
+    link: "/book",
+  },
+];
+
 export default function Home() {
   const { data: tests, isLoading } = useQuery<Test[]>({
     queryKey: ["/api/tests"],
   });
 
   const popularTests = tests?.slice(0, 6) || [];
+
+  const autoplayPlugin = useRef(
+    Autoplay({ delay: 4000, stopOnInteraction: true })
+  );
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -99,6 +155,53 @@ export default function Home() {
               </Button>
             </Link>
           </div>
+        </div>
+      </section>
+
+      <section className="py-8 bg-card">
+        <div className="max-w-7xl mx-auto px-4">
+          <Carousel
+            opts={{
+              align: "start",
+              loop: true,
+            }}
+            plugins={[autoplayPlugin.current]}
+            className="w-full"
+            data-testid="carousel-advertisement"
+          >
+            <CarouselContent>
+              {advertisementSlides.map((slide) => (
+                <CarouselItem key={slide.id} className="md:basis-1/2 lg:basis-1/2">
+                  <div className={`relative overflow-hidden rounded-lg bg-gradient-to-r ${slide.gradient} p-6 md:p-8 h-full min-h-[200px]`}>
+                    <div className="absolute top-4 right-4 opacity-20">
+                      <slide.icon className="h-24 w-24 text-white" />
+                    </div>
+                    <div className="relative z-10 flex flex-col h-full justify-between">
+                      <div>
+                        <p className="text-white/80 text-sm font-medium mb-1">{slide.subtitle}</p>
+                        <h3 className="text-white text-xl md:text-2xl font-bold mb-3">{slide.title}</h3>
+                        <p className="text-white/90 text-sm md:text-base max-w-md">{slide.description}</p>
+                      </div>
+                      <div className="mt-4">
+                        <Link href={slide.link}>
+                          <Button 
+                            variant="secondary" 
+                            className="gap-2"
+                            data-testid={`button-ad-${slide.id}`}
+                          >
+                            {slide.cta}
+                            <ArrowRight className="h-4 w-4" />
+                          </Button>
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
+                </CarouselItem>
+              ))}
+            </CarouselContent>
+            <CarouselPrevious className="left-2 bg-white/90 border-0" />
+            <CarouselNext className="right-2 bg-white/90 border-0" />
+          </Carousel>
         </div>
       </section>
 
