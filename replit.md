@@ -37,6 +37,8 @@ Preferred communication style: Simple, everyday language.
   - `bookings` - Test booking appointments
   - `admins` - Admin user accounts
   - `otps` - One-time passwords with TTL
+  - `reviews` - Customer reviews with approval workflow
+  - `advertisements` - Promotional banners for homepage carousel
 
 ### Project Structure
 ```
@@ -64,6 +66,23 @@ shared/           # Shared between client and server
 - **Component Library**: shadcn/ui provides accessible, customizable components without heavy dependencies
 - **Drizzle ORM**: Type-safe database queries with PostgreSQL, migrations via `drizzle-kit push`
 - **Monorepo Structure**: Single repository with client/server separation but shared code
+- **Reviews Workflow**: Customer reviews require admin approval before displaying on homepage
+- **Advertisement System**: Dynamic carousel on homepage with admin-configurable promotional banners
+
+## New Features
+
+### Customer Reviews
+- Visitors can submit reviews via dialog on homepage
+- Reviews require admin approval before becoming public
+- Admin can approve, reject, or delete reviews from `/admin/reviews`
+- Approved reviews display in the customer testimonials section
+
+### Advertisement Management
+- Dynamic promotional carousel on homepage
+- Admin panel at `/admin/advertisements` for full CRUD management
+- Configurable gradient colors, icons, and call-to-action buttons
+- Active/inactive toggle for controlling visibility
+- Sort order control for carousel sequence
 
 ## External Dependencies
 
