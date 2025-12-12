@@ -1,6 +1,6 @@
 import { Link } from "wouter";
-import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, Shield, Clock, Award, Truck, Star, Quote, FlaskConical, Users, BadgePercent } from "lucide-react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { ArrowRight, Shield, Clock, Award, Truck, Star, Quote, FlaskConical, Users, BadgePercent, PenLine } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -16,9 +16,22 @@ import {
   CarouselNext,
   CarouselPrevious,
 } from "@/components/ui/carousel";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import Autoplay from "embla-carousel-autoplay";
-import { useRef } from "react";
-import type { Test } from "@shared/schema";
+import { useRef, useState } from "react";
+import type { Test, Review, Advertisement } from "@shared/schema";
 
 const features = [
   {
@@ -117,12 +130,84 @@ const advertisementSlides = [
   },
 ];
 
+const iconMap: Record<string, any> = {
+  FlaskConical,
+  BadgePercent,
+  Users,
+  Truck,
+  Shield,
+  Clock,
+  Award,
+};
+
 export default function Home() {
+  const { toast } = useToast();
+  const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
+  const [reviewForm, setReviewForm] = useState({
+    name: "",
+    location: "",
+    rating: 5,
+    review: "",
+  });
+
   const { data: tests, isLoading } = useQuery<Test[]>({
     queryKey: ["/api/tests"],
   });
 
+  const { data: dynamicReviews } = useQuery<Review[]>({
+    queryKey: ["/api/reviews"],
+  });
+
+  const { data: dynamicAds } = useQuery<Advertisement[]>({
+    queryKey: ["/api/advertisements"],
+  });
+
+  const reviewMutation = useMutation({
+    mutationFn: async (data: typeof reviewForm) => {
+      return apiRequest("POST", "/api/reviews", data);
+    },
+    onSuccess: () => {
+      toast({
+        title: "Review Submitted",
+        description: "Thank you! Your review will appear after approval.",
+      });
+      setReviewDialogOpen(false);
+      setReviewForm({ name: "", location: "", rating: 5, review: "" });
+      queryClient.invalidateQueries({ queryKey: ["/api/reviews"] });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to submit review. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const popularTests = tests?.slice(0, 6) || [];
+
+  const displayReviews = dynamicReviews && dynamicReviews.length > 0
+    ? dynamicReviews.slice(0, 4).map(r => ({
+        name: r.name,
+        initials: r.name.split(" ").map(n => n[0]).join("").toUpperCase(),
+        rating: r.rating,
+        review: r.review,
+        location: r.location,
+      }))
+    : customerReviews;
+
+  const displayAds = dynamicAds && dynamicAds.length > 0
+    ? dynamicAds.map(ad => ({
+        id: ad.id,
+        icon: iconMap[ad.icon] || FlaskConical,
+        title: ad.title,
+        subtitle: ad.subtitle,
+        description: ad.description,
+        gradient: ad.gradient,
+        cta: ad.ctaText,
+        link: ad.ctaLink,
+      }))
+    : advertisementSlides;
 
   const autoplayPlugin = useRef(
     Autoplay({ delay: 4000, stopOnInteraction: true })
@@ -170,7 +255,7 @@ export default function Home() {
             data-testid="carousel-advertisement"
           >
             <CarouselContent>
-              {advertisementSlides.map((slide) => (
+              {displayAds.map((slide) => (
                 <CarouselItem key={slide.id} className="md:basis-1/2 lg:basis-1/2">
                   <div className={`relative overflow-hidden rounded-lg bg-gradient-to-r ${slide.gradient} p-6 md:p-8 h-full min-h-[200px]`}>
                     <div className="absolute top-4 right-4 opacity-20">
@@ -287,14 +372,104 @@ export default function Home() {
 
       <section className="py-16 bg-background">
         <div className="max-w-7xl mx-auto px-4">
-          <div className="text-center mb-12">
-            <h2 className="text-2xl md:text-3xl font-semibold mb-4">What Our Customers Say</h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto">
-              Trusted by thousands of patients for accurate and reliable diagnostic services
-            </p>
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-12">
+            <div className="text-center sm:text-left">
+              <h2 className="text-2xl md:text-3xl font-semibold mb-2">What Our Customers Say</h2>
+              <p className="text-muted-foreground max-w-2xl">
+                Trusted by thousands of patients for accurate and reliable diagnostic services
+              </p>
+            </div>
+            <Dialog open={reviewDialogOpen} onOpenChange={setReviewDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="gap-2" data-testid="button-write-review">
+                  <PenLine className="h-4 w-4" />
+                  Write a Review
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Share Your Experience</DialogTitle>
+                  <DialogDescription>
+                    Tell us about your experience with our services. Your review will help others.
+                  </DialogDescription>
+                </DialogHeader>
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    reviewMutation.mutate(reviewForm);
+                  }}
+                  className="space-y-4"
+                >
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Your Name</Label>
+                    <Input
+                      id="name"
+                      value={reviewForm.name}
+                      onChange={(e) => setReviewForm({ ...reviewForm, name: e.target.value })}
+                      placeholder="Enter your name"
+                      required
+                      data-testid="input-review-name"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="location">Location</Label>
+                    <Input
+                      id="location"
+                      value={reviewForm.location}
+                      onChange={(e) => setReviewForm({ ...reviewForm, location: e.target.value })}
+                      placeholder="Your city"
+                      required
+                      data-testid="input-review-location"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Rating</Label>
+                    <div className="flex gap-1">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <button
+                          key={star}
+                          type="button"
+                          onClick={() => setReviewForm({ ...reviewForm, rating: star })}
+                          className="focus:outline-none"
+                          data-testid={`button-star-${star}`}
+                        >
+                          <Star
+                            className={`h-6 w-6 cursor-pointer transition-colors ${
+                              star <= reviewForm.rating
+                                ? "fill-yellow-400 text-yellow-400"
+                                : "text-muted-foreground/30"
+                            }`}
+                          />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="review">Your Review</Label>
+                    <Textarea
+                      id="review"
+                      value={reviewForm.review}
+                      onChange={(e) => setReviewForm({ ...reviewForm, review: e.target.value })}
+                      placeholder="Share your experience..."
+                      rows={4}
+                      required
+                      data-testid="textarea-review"
+                    />
+                  </div>
+                  <Button
+                    type="submit"
+                    className="w-full"
+                    disabled={reviewMutation.isPending}
+                    data-testid="button-submit-review"
+                  >
+                    {reviewMutation.isPending ? "Submitting..." : "Submit Review"}
+                  </Button>
+                </form>
+              </DialogContent>
+            </Dialog>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {customerReviews.map((review, index) => (
+            {displayReviews.map((review, index) => (
               <Card key={index} className="relative" data-testid={`card-review-${index}`}>
                 <CardContent className="pt-6">
                   <Quote className="absolute top-4 right-4 h-8 w-8 text-primary/10" />

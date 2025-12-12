@@ -1,5 +1,5 @@
 import { 
-  patients, tests, results, reports, bookings, otps, admins,
+  patients, tests, results, reports, bookings, otps, admins, reviews, advertisements,
   type Patient, type InsertPatient,
   type Test, type InsertTest,
   type Result, type InsertResult,
@@ -7,6 +7,8 @@ import {
   type Booking, type InsertBooking,
   type Otp, type InsertOtp,
   type Admin, type InsertAdmin,
+  type Review, type InsertReview,
+  type Advertisement, type InsertAdvertisement,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, or, ilike, desc, and, gte, sql } from "drizzle-orm";
@@ -67,6 +69,20 @@ export interface IStorage {
     recentBookings: number;
     todayReports: number;
   }>;
+
+  // Reviews
+  getAllReviews(): Promise<Review[]>;
+  getApprovedReviews(): Promise<Review[]>;
+  createReview(review: InsertReview): Promise<Review>;
+  updateReviewApproval(id: string, isApproved: boolean): Promise<Review | undefined>;
+  deleteReview(id: string): Promise<void>;
+
+  // Advertisements
+  getAllAdvertisements(): Promise<Advertisement[]>;
+  getActiveAdvertisements(): Promise<Advertisement[]>;
+  createAdvertisement(ad: InsertAdvertisement): Promise<Advertisement>;
+  updateAdvertisement(id: string, ad: Partial<InsertAdvertisement>): Promise<Advertisement | undefined>;
+  deleteAdvertisement(id: string): Promise<void>;
 
   // Utility
   generatePatientId(): Promise<string>;
@@ -297,6 +313,62 @@ export class DatabaseStorage implements IStorage {
       recentBookings: Number(recentCount?.count || 0),
       todayReports: Number(todayCount?.count || 0),
     };
+  }
+
+  // Reviews
+  async getAllReviews(): Promise<Review[]> {
+    return db.select().from(reviews).orderBy(desc(reviews.createdAt));
+  }
+
+  async getApprovedReviews(): Promise<Review[]> {
+    return db.select().from(reviews)
+      .where(eq(reviews.isApproved, true))
+      .orderBy(desc(reviews.createdAt));
+  }
+
+  async createReview(review: InsertReview): Promise<Review> {
+    const [created] = await db.insert(reviews).values(review).returning();
+    return created;
+  }
+
+  async updateReviewApproval(id: string, isApproved: boolean): Promise<Review | undefined> {
+    const [updated] = await db.update(reviews)
+      .set({ isApproved })
+      .where(eq(reviews.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
+  async deleteReview(id: string): Promise<void> {
+    await db.delete(reviews).where(eq(reviews.id, id));
+  }
+
+  // Advertisements
+  async getAllAdvertisements(): Promise<Advertisement[]> {
+    return db.select().from(advertisements).orderBy(advertisements.sortOrder);
+  }
+
+  async getActiveAdvertisements(): Promise<Advertisement[]> {
+    return db.select().from(advertisements)
+      .where(eq(advertisements.isActive, true))
+      .orderBy(advertisements.sortOrder);
+  }
+
+  async createAdvertisement(ad: InsertAdvertisement): Promise<Advertisement> {
+    const [created] = await db.insert(advertisements).values(ad).returning();
+    return created;
+  }
+
+  async updateAdvertisement(id: string, ad: Partial<InsertAdvertisement>): Promise<Advertisement | undefined> {
+    const [updated] = await db.update(advertisements)
+      .set(ad)
+      .where(eq(advertisements.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
+  async deleteAdvertisement(id: string): Promise<void> {
+    await db.delete(advertisements).where(eq(advertisements.id, id));
   }
 }
 

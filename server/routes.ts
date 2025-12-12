@@ -639,5 +639,169 @@ export async function registerRoutes(
     }
   });
 
+  // ==================== REVIEWS ROUTES ====================
+
+  // Get approved reviews (public)
+  app.get("/api/reviews", async (req, res) => {
+    try {
+      const reviews = await storage.getApprovedReviews();
+      res.json(reviews);
+    } catch (error) {
+      console.error("Error fetching reviews:", error);
+      res.status(500).json({ message: "Failed to fetch reviews" });
+    }
+  });
+
+  // Submit a review (public)
+  app.post("/api/reviews", async (req, res) => {
+    try {
+      const { name, location, rating, review } = req.body;
+
+      if (!name || !location || !rating || !review) {
+        return res.status(400).json({ message: "All fields are required" });
+      }
+
+      if (rating < 1 || rating > 5) {
+        return res.status(400).json({ message: "Rating must be between 1 and 5" });
+      }
+
+      const newReview = await storage.createReview({
+        name,
+        location,
+        rating,
+        review,
+        isApproved: false,
+      });
+
+      res.json({ message: "Review submitted successfully. It will appear after approval.", review: newReview });
+    } catch (error) {
+      console.error("Error creating review:", error);
+      res.status(500).json({ message: "Failed to submit review" });
+    }
+  });
+
+  // Get all reviews (admin)
+  app.get("/api/admin/reviews", authenticateToken, adminOnly, async (req, res) => {
+    try {
+      const reviews = await storage.getAllReviews();
+      res.json(reviews);
+    } catch (error) {
+      console.error("Error fetching reviews:", error);
+      res.status(500).json({ message: "Failed to fetch reviews" });
+    }
+  });
+
+  // Approve/reject review (admin)
+  app.patch("/api/admin/reviews/:id/approve", authenticateToken, adminOnly, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { isApproved } = req.body;
+
+      const review = await storage.updateReviewApproval(id, isApproved);
+      if (!review) {
+        return res.status(404).json({ message: "Review not found" });
+      }
+
+      res.json(review);
+    } catch (error) {
+      console.error("Error updating review:", error);
+      res.status(500).json({ message: "Failed to update review" });
+    }
+  });
+
+  // Delete review (admin)
+  app.delete("/api/admin/reviews/:id", authenticateToken, adminOnly, async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteReview(id);
+      res.json({ message: "Review deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting review:", error);
+      res.status(500).json({ message: "Failed to delete review" });
+    }
+  });
+
+  // ==================== ADVERTISEMENTS ROUTES ====================
+
+  // Get active advertisements (public)
+  app.get("/api/advertisements", async (req, res) => {
+    try {
+      const ads = await storage.getActiveAdvertisements();
+      res.json(ads);
+    } catch (error) {
+      console.error("Error fetching advertisements:", error);
+      res.status(500).json({ message: "Failed to fetch advertisements" });
+    }
+  });
+
+  // Get all advertisements (admin)
+  app.get("/api/admin/advertisements", authenticateToken, adminOnly, async (req, res) => {
+    try {
+      const ads = await storage.getAllAdvertisements();
+      res.json(ads);
+    } catch (error) {
+      console.error("Error fetching advertisements:", error);
+      res.status(500).json({ message: "Failed to fetch advertisements" });
+    }
+  });
+
+  // Create advertisement (admin)
+  app.post("/api/admin/advertisements", authenticateToken, adminOnly, async (req, res) => {
+    try {
+      const { title, subtitle, description, gradient, icon, ctaText, ctaLink, isActive, sortOrder } = req.body;
+
+      if (!title || !subtitle || !description || !gradient || !icon || !ctaText || !ctaLink) {
+        return res.status(400).json({ message: "All fields are required" });
+      }
+
+      const ad = await storage.createAdvertisement({
+        title,
+        subtitle,
+        description,
+        gradient,
+        icon,
+        ctaText,
+        ctaLink,
+        isActive: isActive !== undefined ? isActive : true,
+        sortOrder: sortOrder || 0,
+      });
+
+      res.json(ad);
+    } catch (error) {
+      console.error("Error creating advertisement:", error);
+      res.status(500).json({ message: "Failed to create advertisement" });
+    }
+  });
+
+  // Update advertisement (admin)
+  app.patch("/api/admin/advertisements/:id", authenticateToken, adminOnly, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const updates = req.body;
+
+      const ad = await storage.updateAdvertisement(id, updates);
+      if (!ad) {
+        return res.status(404).json({ message: "Advertisement not found" });
+      }
+
+      res.json(ad);
+    } catch (error) {
+      console.error("Error updating advertisement:", error);
+      res.status(500).json({ message: "Failed to update advertisement" });
+    }
+  });
+
+  // Delete advertisement (admin)
+  app.delete("/api/admin/advertisements/:id", authenticateToken, adminOnly, async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteAdvertisement(id);
+      res.json({ message: "Advertisement deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting advertisement:", error);
+      res.status(500).json({ message: "Failed to delete advertisement" });
+    }
+  });
+
   return httpServer;
 }

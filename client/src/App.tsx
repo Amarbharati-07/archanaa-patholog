@@ -19,6 +19,8 @@ import AdminCreateReport from "@/pages/admin/create-report";
 import AdminReports from "@/pages/admin/reports";
 import AdminTests from "@/pages/admin/tests";
 import AdminBookings from "@/pages/admin/bookings";
+import AdminAdvertisements from "@/pages/admin/advertisements";
+import AdminReviews from "@/pages/admin/reviews";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -37,6 +39,8 @@ function Router() {
       <Route path="/admin/reports" component={AdminReports} />
       <Route path="/admin/tests" component={AdminTests} />
       <Route path="/admin/bookings" component={AdminBookings} />
+      <Route path="/admin/advertisements" component={AdminAdvertisements} />
+      <Route path="/admin/reviews" component={AdminReviews} />
       <Route component={NotFound} />
     </Switch>
   );

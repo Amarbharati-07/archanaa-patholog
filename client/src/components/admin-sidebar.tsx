@@ -7,7 +7,9 @@ import {
   Calendar, 
   Settings,
   FilePlus,
-  LogOut
+  LogOut,
+  Megaphone,
+  MessageSquare,
 } from "lucide-react";
 import {
   Sidebar,
@@ -31,6 +33,8 @@ const menuItems = [
   { title: "Reports", url: "/admin/reports", icon: FileText },
   { title: "Tests", url: "/admin/tests", icon: FlaskConical },
   { title: "Bookings", url: "/admin/bookings", icon: Calendar },
+  { title: "Advertisements", url: "/admin/advertisements", icon: Megaphone },
+  { title: "Reviews", url: "/admin/reviews", icon: MessageSquare },
 ];
 
 export function AdminSidebar() {

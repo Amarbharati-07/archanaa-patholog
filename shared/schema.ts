@@ -80,6 +80,30 @@ export const admins = pgTable("admins", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const reviews = pgTable("reviews", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  location: text("location").notNull(),
+  rating: integer("rating").notNull(),
+  review: text("review").notNull(),
+  isApproved: boolean("is_approved").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const advertisements = pgTable("advertisements", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  title: text("title").notNull(),
+  subtitle: text("subtitle").notNull(),
+  description: text("description").notNull(),
+  gradient: varchar("gradient", { length: 100 }).notNull(),
+  icon: varchar("icon", { length: 50 }).notNull(),
+  ctaText: text("cta_text").notNull(),
+  ctaLink: text("cta_link").notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export interface TestParameter {
   name: string;
   unit: string;
@@ -129,6 +153,16 @@ export const insertAdminSchema = createInsertSchema(admins).omit({
   createdAt: true,
 });
 
+export const insertReviewSchema = createInsertSchema(reviews).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertAdvertisementSchema = createInsertSchema(advertisements).omit({
+  id: true,
+  createdAt: true,
+});
+
 export type Patient = typeof patients.$inferSelect;
 export type InsertPatient = z.infer<typeof insertPatientSchema>;
 export type Test = typeof tests.$inferSelect;
@@ -143,6 +177,10 @@ export type Otp = typeof otps.$inferSelect;
 export type InsertOtp = z.infer<typeof insertOtpSchema>;
 export type Admin = typeof admins.$inferSelect;
 export type InsertAdmin = z.infer<typeof insertAdminSchema>;
+export type Review = typeof reviews.$inferSelect;
+export type InsertReview = z.infer<typeof insertReviewSchema>;
+export type Advertisement = typeof advertisements.$inferSelect;
+export type InsertAdvertisement = z.infer<typeof insertAdvertisementSchema>;
 
 export const bookingStatuses = ["pending", "collected", "processing", "report_ready", "delivered"] as const;
 export type BookingStatus = typeof bookingStatuses[number];
