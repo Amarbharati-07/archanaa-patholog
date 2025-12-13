@@ -633,17 +633,35 @@ export async function registerRoutes(
     }
   });
 
-  // Get patient reports
+  // Get patient reports (with payment status check)
   app.get("/api/patient/reports", authenticateToken, async (req, res) => {
     try {
       const user = (req as any).user;
       const reports = await storage.getReportsByPatient(user.id);
+      const bookings = await storage.getBookingsByPatient(user.id);
       
       const reportsWithDetails = await Promise.all(
         reports.map(async (report) => {
           const result = await storage.getResult(report.resultId);
           const test = result ? await storage.getTest(result.testId) : null;
-          return { ...report, test };
+          
+          // Find associated booking to check payment status
+          const associatedBooking = bookings.find(b => 
+            (b.testIds as string[]).some(testId => testId === result?.testId)
+          );
+          
+          const paymentVerified = associatedBooking?.paymentStatus === 'verified' || 
+                                  associatedBooking?.paymentStatus === 'cash_on_delivery' ||
+                                  associatedBooking?.paymentStatus === 'pay_at_lab';
+          
+          return { 
+            ...report, 
+            test,
+            paymentVerified,
+            paymentStatus: associatedBooking?.paymentStatus || 'pending',
+            // Only include download token if payment is verified
+            secureDownloadToken: paymentVerified ? report.secureDownloadToken : null
+          };
         })
       );
 
@@ -651,6 +669,45 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error fetching patient reports:", error);
       res.status(500).json({ message: "Failed to fetch reports" });
+    }
+  });
+
+  // Update booking payment
+  app.patch("/api/patient/bookings/:id/payment", authenticateToken, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const user = (req as any).user;
+      const { paymentMethod, transactionId, amountPaid } = req.body;
+
+      if (!paymentMethod || !amountPaid) {
+        return res.status(400).json({ message: "Payment method and amount are required" });
+      }
+
+      // Verify the booking belongs to this patient
+      const booking = await storage.getBooking(id);
+      if (!booking) {
+        return res.status(404).json({ message: "Booking not found" });
+      }
+      if (booking.patientId !== user.id) {
+        return res.status(403).json({ message: "Unauthorized" });
+      }
+
+      // Determine payment status based on method
+      const isCashPayment = paymentMethod === 'cash_on_delivery' || paymentMethod === 'pay_at_lab';
+      const paymentStatus = isCashPayment ? paymentMethod : 'paid_unverified';
+
+      const updated = await storage.updateBookingPayment(id, {
+        paymentMethod,
+        paymentStatus,
+        transactionId: transactionId || undefined,
+        amountPaid,
+        paymentDate: new Date(),
+      });
+
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating payment:", error);
+      res.status(500).json({ message: "Failed to update payment" });
     }
   });
 
@@ -748,6 +805,33 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error updating booking:", error);
       res.status(500).json({ message: "Failed to update booking" });
+    }
+  });
+
+  // Verify booking payment
+  app.patch("/api/admin/bookings/:id/verify-payment", authenticateToken, adminOnly, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const admin = (req as any).user;
+
+      const booking = await storage.getBooking(id);
+      if (!booking) {
+        return res.status(404).json({ message: "Booking not found" });
+      }
+
+      if (booking.paymentStatus !== 'paid_unverified') {
+        return res.status(400).json({ message: "Payment is not pending verification" });
+      }
+
+      const updated = await storage.verifyBookingPayment(id, admin.id);
+      if (!updated) {
+        return res.status(500).json({ message: "Failed to verify payment" });
+      }
+
+      res.json(updated);
+    } catch (error) {
+      console.error("Error verifying payment:", error);
+      res.status(500).json({ message: "Failed to verify payment" });
     }
   });
 

@@ -50,6 +50,14 @@ export interface IStorage {
   getAllBookings(): Promise<Booking[]>;
   createBooking(booking: InsertBooking): Promise<Booking>;
   updateBookingStatus(id: string, status: string): Promise<Booking | undefined>;
+  updateBookingPayment(id: string, paymentData: {
+    paymentMethod: string;
+    paymentStatus: string;
+    transactionId?: string;
+    amountPaid: string;
+    paymentDate: Date;
+  }): Promise<Booking | undefined>;
+  verifyBookingPayment(id: string, adminId: string): Promise<Booking | undefined>;
 
   // OTP
   createOtp(otp: InsertOtp): Promise<Otp>;
@@ -247,6 +255,38 @@ export class DatabaseStorage implements IStorage {
   async updateBookingStatus(id: string, status: string): Promise<Booking | undefined> {
     const [updated] = await db.update(bookings)
       .set({ status })
+      .where(eq(bookings.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
+  async updateBookingPayment(id: string, paymentData: {
+    paymentMethod: string;
+    paymentStatus: string;
+    transactionId?: string;
+    amountPaid: string;
+    paymentDate: Date;
+  }): Promise<Booking | undefined> {
+    const [updated] = await db.update(bookings)
+      .set({
+        paymentMethod: paymentData.paymentMethod,
+        paymentStatus: paymentData.paymentStatus,
+        transactionId: paymentData.transactionId || null,
+        amountPaid: paymentData.amountPaid,
+        paymentDate: paymentData.paymentDate,
+      })
+      .where(eq(bookings.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
+  async verifyBookingPayment(id: string, adminId: string): Promise<Booking | undefined> {
+    const [updated] = await db.update(bookings)
+      .set({
+        paymentStatus: 'verified',
+        paymentVerifiedAt: new Date(),
+        paymentVerifiedBy: adminId,
+      })
       .where(eq(bookings.id, id))
       .returning();
     return updated || undefined;
