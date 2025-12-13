@@ -33,10 +33,20 @@ export default function Dashboard() {
 
   const { data: bookings, isLoading: bookingsLoading } = useQuery<(Booking & { tests: Test[] })[]>({
     queryKey: ["/api/patient/bookings"],
+    refetchInterval: 5000,
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
+    refetchIntervalInBackground: true,
+    enabled: !!patient,
   });
 
   const { data: reports, isLoading: reportsLoading } = useQuery<(Report & { test: Test })[]>({
     queryKey: ["/api/patient/reports"],
+    refetchInterval: 5000,
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
+    refetchIntervalInBackground: true,
+    enabled: !!patient,
   });
 
   if (!patient) {
@@ -176,7 +186,7 @@ export default function Dashboard() {
                                   <Clock className="h-3 w-3" />
                                   {format(new Date(booking.slot), "p")}
                                 </div>
-                                <Badge variant="outline" size="sm">
+                                <Badge variant="outline">
                                   {booking.type === "pickup" ? "Home Collection" : "Walk-in"}
                                 </Badge>
                               </div>

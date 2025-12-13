@@ -63,7 +63,8 @@ export default function Book() {
         title: "Booking Confirmed!",
         description: "Your test booking has been successfully created. You will receive a confirmation shortly.",
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/bookings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/patient/bookings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/bookings"] });
       navigate("/dashboard");
     },
     onError: (error: Error) => {

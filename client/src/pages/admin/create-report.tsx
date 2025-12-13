@@ -149,6 +149,7 @@ export default function CreateReport() {
         description: "The report has been created and notifications sent.",
       });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/reports"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/patient/reports"] });
       navigate("/admin/reports");
     },
     onError: (error: Error) => {
@@ -317,12 +318,12 @@ export default function CreateReport() {
                               <td className="py-3 px-2 text-center">
                                 {param.value && (
                                   param.isAbnormal ? (
-                                    <Badge variant="destructive" size="sm">
+                                    <Badge variant="destructive">
                                       <AlertCircle className="h-3 w-3 mr-1" />
                                       High/Low
                                     </Badge>
                                   ) : (
-                                    <Badge className="bg-success text-success-foreground" size="sm">
+                                    <Badge className="bg-success text-success-foreground">
                                       <Check className="h-3 w-3 mr-1" />
                                       Normal
                                     </Badge>

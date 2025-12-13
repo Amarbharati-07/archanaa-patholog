@@ -43,6 +43,8 @@ export default function AdminBookings() {
 
   const { data: bookings, isLoading } = useQuery<BookingWithDetails[]>({
     queryKey: ["/api/admin/bookings"],
+    refetchInterval: 5000,
+    refetchOnWindowFocus: true,
   });
 
   const updateStatusMutation = useMutation({
@@ -55,6 +57,7 @@ export default function AdminBookings() {
         description: "Booking status has been updated.",
       });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/bookings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/patient/bookings"] });
     },
     onError: (error: Error) => {
       toast({
@@ -152,9 +155,9 @@ export default function AdminBookings() {
                             {booking.patient?.name || booking.guestName || "Guest"}
                           </span>
                           {booking.patient?.patientId && (
-                            <Badge variant="secondary" size="sm">{booking.patient.patientId}</Badge>
+                            <Badge variant="secondary">{booking.patient.patientId}</Badge>
                           )}
-                          <Badge variant="outline" size="sm">
+                          <Badge variant="outline">
                             {booking.type === "pickup" ? "Home Collection" : "Walk-in"}
                           </Badge>
                         </div>
