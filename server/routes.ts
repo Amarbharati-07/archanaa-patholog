@@ -6,6 +6,7 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { z } from "zod";
 import { verifyFirebaseToken } from "./firebase-admin";
+import { sendOtpEmail } from "./email";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -339,17 +340,125 @@ export async function registerRoutes(
         dob: dob ? new Date(dob) : null,
         address: null,
         password: hashedPassword,
+        emailVerified: false,
         notes: null,
       });
 
-      const token = jwt.sign({ id: patient.id, type: 'patient' }, JWT_SECRET, { expiresIn: '7d' });
+      // Generate and send email verification OTP
+      const otp = generateOTP();
+      await storage.createOtp({
+        contact: email,
+        otp,
+        purpose: "email_verification",
+        expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+      });
+
+      await sendOtpEmail(email, otp, "email_verification");
       
       // Don't return password in response
       const { password: _, ...patientData } = patient as any;
-      res.json({ patient: patientData, token });
+      res.json({ 
+        message: "Registration successful. Please verify your email.", 
+        patient: patientData,
+        requiresVerification: true 
+      });
     } catch (error) {
       console.error("Error in email registration:", error);
       res.status(500).json({ message: "Registration failed" });
+    }
+  });
+
+  // Resend email verification OTP
+  app.post("/api/auth/resend-verification", async (req, res) => {
+    try {
+      const { email } = req.body;
+
+      if (!email) {
+        return res.status(400).json({ message: "Email is required" });
+      }
+
+      const patient = await storage.getPatientByEmail(email);
+      if (!patient) {
+        return res.status(404).json({ message: "Email not found" });
+      }
+
+      if (patient.emailVerified) {
+        return res.status(400).json({ message: "Email already verified" });
+      }
+
+      const otp = generateOTP();
+      await storage.createOtp({
+        contact: email,
+        otp,
+        purpose: "email_verification",
+        expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+      });
+
+      await sendOtpEmail(email, otp, "email_verification");
+
+      res.json({ message: "Verification OTP sent successfully" });
+    } catch (error) {
+      console.error("Error resending verification:", error);
+      res.status(500).json({ message: "Failed to resend verification" });
+    }
+  });
+
+  // Verify email with OTP
+  app.post("/api/auth/verify-email", async (req, res) => {
+    try {
+      const { email, otp } = req.body;
+
+      if (!email || !otp) {
+        return res.status(400).json({ message: "Email and OTP are required" });
+      }
+
+      // Get OTP record to check attempts
+      const otpRecord = await storage.getOtpByContact(email, "email_verification");
+      
+      if (!otpRecord) {
+        return res.status(400).json({ message: "No verification request found. Please request a new OTP." });
+      }
+
+      // Check max attempts (3)
+      if (otpRecord.attempts >= 3) {
+        await storage.deleteOtp(otpRecord.id);
+        return res.status(400).json({ message: "Maximum attempts exceeded. Please request a new OTP." });
+      }
+
+      // Increment attempts
+      await storage.incrementOtpAttempts(otpRecord.id);
+
+      // Verify OTP
+      if (otpRecord.otp !== otp) {
+        const remainingAttempts = 2 - otpRecord.attempts;
+        return res.status(400).json({ 
+          message: `Invalid OTP. ${remainingAttempts > 0 ? `${remainingAttempts} attempts remaining.` : 'Please request a new OTP.'}` 
+        });
+      }
+
+      // Delete OTP
+      await storage.deleteOtp(otpRecord.id);
+
+      // Get patient and update emailVerified
+      const patient = await storage.getPatientByEmail(email);
+      if (!patient) {
+        return res.status(404).json({ message: "Patient not found" });
+      }
+
+      await storage.updatePatientEmailVerified(patient.id, true);
+
+      // Generate token and return patient data
+      const token = jwt.sign({ id: patient.id, type: 'patient' }, JWT_SECRET, { expiresIn: '7d' });
+      
+      const { password: _, ...patientData } = patient as any;
+      res.json({ 
+        message: "Email verified successfully",
+        patient: { ...patientData, emailVerified: true }, 
+        token 
+      });
+    } catch (error) {
+      console.error("Error verifying email:", error);
+      res.status(500).json({ message: "Verification failed" });
     }
   });
 
@@ -375,6 +484,15 @@ export async function registerRoutes(
       const valid = await bcrypt.compare(password, patient.password);
       if (!valid) {
         return res.status(401).json({ message: "Invalid email or password" });
+      }
+
+      // Check if email is verified
+      if (!patient.emailVerified) {
+        return res.status(403).json({ 
+          message: "Please verify your email before logging in.",
+          requiresVerification: true,
+          email: patient.email
+        });
       }
 
       const token = jwt.sign({ id: patient.id, type: 'patient' }, JWT_SECRET, { expiresIn: '7d' });
@@ -414,10 +532,10 @@ export async function registerRoutes(
         expiresAt,
       });
 
-      // In production, send OTP via Email
-      console.log(`Password reset OTP for ${email}: ${otp}`);
+      // Send OTP via Email
+      await sendOtpEmail(email, otp, "password_reset");
 
-      res.json({ message: "If this email is registered, you will receive a password reset OTP", debug_otp: otp });
+      res.json({ message: "If this email is registered, you will receive a password reset OTP" });
     } catch (error) {
       console.error("Error requesting password reset:", error);
       res.status(500).json({ message: "Failed to send reset OTP" });
