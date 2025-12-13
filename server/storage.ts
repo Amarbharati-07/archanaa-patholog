@@ -24,6 +24,7 @@ export interface IStorage {
   createPatient(patient: InsertPatient): Promise<Patient>;
   updatePatient(id: string, patient: Partial<InsertPatient>): Promise<Patient | undefined>;
   updatePatientFirebaseUid(id: string, firebaseUid: string): Promise<Patient | undefined>;
+  updatePatientPassword(id: string, password: string): Promise<Patient | undefined>;
 
   // Tests
   getTest(id: string): Promise<Test | undefined>;
@@ -138,6 +139,11 @@ export class DatabaseStorage implements IStorage {
 
   async updatePatientFirebaseUid(id: string, firebaseUid: string): Promise<Patient | undefined> {
     const [updated] = await db.update(patients).set({ firebaseUid }).where(eq(patients.id, id)).returning();
+    return updated || undefined;
+  }
+
+  async updatePatientPassword(id: string, password: string): Promise<Patient | undefined> {
+    const [updated] = await db.update(patients).set({ password }).where(eq(patients.id, id)).returning();
     return updated || undefined;
   }
 

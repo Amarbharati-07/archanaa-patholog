@@ -291,6 +291,176 @@ export async function registerRoutes(
     }
   });
 
+  // ==================== EMAIL/PASSWORD AUTH ROUTES ====================
+
+  // Register with email and password
+  app.post("/api/auth/register-email", async (req, res) => {
+    try {
+      const { name, email, phone, password, gender, dob } = req.body;
+
+      if (!name || !email || !phone || !password) {
+        return res.status(400).json({ message: "Name, email, phone, and password are required" });
+      }
+
+      // Validate email format
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        return res.status(400).json({ message: "Invalid email format" });
+      }
+
+      // Validate password strength
+      if (password.length < 6) {
+        return res.status(400).json({ message: "Password must be at least 6 characters" });
+      }
+
+      // Check if email already exists
+      const existingEmail = await storage.getPatientByEmail(email);
+      if (existingEmail) {
+        return res.status(400).json({ message: "Email already registered" });
+      }
+
+      // Check if phone already exists
+      const existingPhone = await storage.getPatientByPhone(phone);
+      if (existingPhone) {
+        return res.status(400).json({ message: "Phone number already registered" });
+      }
+
+      // Hash password
+      const hashedPassword = await bcrypt.hash(password, 10);
+
+      const patientId = await storage.generatePatientId();
+      
+      const patient = await storage.createPatient({
+        patientId,
+        name,
+        phone,
+        email,
+        gender: gender || null,
+        dob: dob ? new Date(dob) : null,
+        address: null,
+        password: hashedPassword,
+        notes: null,
+      });
+
+      const token = jwt.sign({ id: patient.id, type: 'patient' }, JWT_SECRET, { expiresIn: '7d' });
+      
+      // Don't return password in response
+      const { password: _, ...patientData } = patient as any;
+      res.json({ patient: patientData, token });
+    } catch (error) {
+      console.error("Error in email registration:", error);
+      res.status(500).json({ message: "Registration failed" });
+    }
+  });
+
+  // Login with email and password
+  app.post("/api/auth/login-email", async (req, res) => {
+    try {
+      const { email, password } = req.body;
+
+      if (!email || !password) {
+        return res.status(400).json({ message: "Email and password are required" });
+      }
+
+      const patient = await storage.getPatientByEmail(email);
+      
+      if (!patient) {
+        return res.status(401).json({ message: "Invalid email or password" });
+      }
+
+      if (!patient.password) {
+        return res.status(401).json({ message: "Password not set. Please use forgot password to set one." });
+      }
+
+      const valid = await bcrypt.compare(password, patient.password);
+      if (!valid) {
+        return res.status(401).json({ message: "Invalid email or password" });
+      }
+
+      const token = jwt.sign({ id: patient.id, type: 'patient' }, JWT_SECRET, { expiresIn: '7d' });
+      
+      // Don't return password in response
+      const { password: _, ...patientData } = patient as any;
+      res.json({ patient: patientData, token });
+    } catch (error) {
+      console.error("Error in email login:", error);
+      res.status(500).json({ message: "Login failed" });
+    }
+  });
+
+  // Request password reset OTP
+  app.post("/api/auth/forgot-password", async (req, res) => {
+    try {
+      const { email } = req.body;
+
+      if (!email) {
+        return res.status(400).json({ message: "Email is required" });
+      }
+
+      const patient = await storage.getPatientByEmail(email);
+      
+      if (!patient) {
+        // Don't reveal if email exists or not for security
+        return res.json({ message: "If this email is registered, you will receive a password reset OTP" });
+      }
+
+      const otp = generateOTP();
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes for reset
+
+      await storage.createOtp({
+        contact: email,
+        otp,
+        purpose: "password_reset",
+        expiresAt,
+      });
+
+      // In production, send OTP via Email
+      console.log(`Password reset OTP for ${email}: ${otp}`);
+
+      res.json({ message: "If this email is registered, you will receive a password reset OTP", debug_otp: otp });
+    } catch (error) {
+      console.error("Error requesting password reset:", error);
+      res.status(500).json({ message: "Failed to send reset OTP" });
+    }
+  });
+
+  // Reset password with OTP
+  app.post("/api/auth/reset-password", async (req, res) => {
+    try {
+      const { email, otp, newPassword } = req.body;
+
+      if (!email || !otp || !newPassword) {
+        return res.status(400).json({ message: "Email, OTP, and new password are required" });
+      }
+
+      if (newPassword.length < 6) {
+        return res.status(400).json({ message: "Password must be at least 6 characters" });
+      }
+
+      const otpRecord = await storage.verifyOtp(email, otp, "password_reset");
+      
+      if (!otpRecord) {
+        return res.status(400).json({ message: "Invalid or expired OTP" });
+      }
+
+      await storage.deleteOtp(otpRecord.id);
+
+      const patient = await storage.getPatientByEmail(email);
+      if (!patient) {
+        return res.status(404).json({ message: "Patient not found" });
+      }
+
+      // Hash and update password
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+      await storage.updatePatientPassword(patient.id, hashedPassword);
+
+      res.json({ message: "Password reset successful. You can now login with your new password." });
+    } catch (error) {
+      console.error("Error resetting password:", error);
+      res.status(500).json({ message: "Password reset failed" });
+    }
+  });
+
   // Admin login
   app.post("/api/admin/login", async (req, res) => {
     try {

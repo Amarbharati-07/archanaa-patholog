@@ -11,6 +11,7 @@ import Tests from "@/pages/tests";
 import Book from "@/pages/book";
 import Login from "@/pages/login";
 import Register from "@/pages/register";
+import ForgotPassword from "@/pages/forgot-password";
 import Dashboard from "@/pages/dashboard";
 import AdminLogin from "@/pages/admin/login";
 import AdminDashboard from "@/pages/admin/dashboard";
@@ -31,6 +32,7 @@ function Router() {
       <Route path="/book" component={Book} />
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />
+      <Route path="/forgot-password" component={ForgotPassword} />
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/admin/login" component={AdminLogin} />
       <Route path="/admin" component={AdminDashboard} />
