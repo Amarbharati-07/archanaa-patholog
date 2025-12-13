@@ -1,7 +1,7 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { randomBytes, createHash } from "crypto";
+import { randomBytes, createHash, createHmac } from "crypto";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { z } from "zod";
@@ -10,6 +10,7 @@ import { sendOtpEmail } from "./email";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import Razorpay from "razorpay";
 
 const uploadsDir = path.join(process.cwd(), "uploads", "banners");
 if (!fs.existsSync(uploadsDir)) {
@@ -42,6 +43,21 @@ const uploadBanner = multer({
 });
 
 const JWT_SECRET = process.env.SESSION_SECRET || "archana-pathology-secret-key";
+
+// Initialize Razorpay instance (only if credentials are available)
+const razorpayKeyId = process.env.RAZORPAY_KEY_ID;
+const razorpayKeySecret = process.env.RAZORPAY_KEY_SECRET;
+
+let razorpayInstance: Razorpay | null = null;
+if (razorpayKeyId && razorpayKeySecret) {
+  razorpayInstance = new Razorpay({
+    key_id: razorpayKeyId,
+    key_secret: razorpayKeySecret,
+  });
+  console.log("Razorpay initialized successfully");
+} else {
+  console.log("Razorpay credentials not found - payment gateway disabled");
+}
 
 // Generate a random 6-digit OTP
 function generateOTP(): string {
@@ -621,10 +637,97 @@ export async function registerRoutes(
     }
   });
 
+  // ==================== RAZORPAY PAYMENT ROUTES ====================
+
+  // Get Razorpay key for frontend
+  app.get("/api/payment/razorpay-key", (req, res) => {
+    if (!razorpayKeyId) {
+      return res.status(503).json({ message: "Payment gateway not configured" });
+    }
+    res.json({ keyId: razorpayKeyId });
+  });
+
+  // Create Razorpay order
+  app.post("/api/payment/create-order", async (req, res) => {
+    try {
+      if (!razorpayInstance) {
+        return res.status(503).json({ message: "Payment gateway not configured" });
+      }
+
+      const { amount, testIds, phone, email, name } = req.body;
+
+      if (!amount || amount <= 0) {
+        return res.status(400).json({ message: "Valid amount is required" });
+      }
+
+      if (!testIds || !Array.isArray(testIds) || testIds.length === 0) {
+        return res.status(400).json({ message: "Test IDs are required" });
+      }
+
+      // Create Razorpay order
+      const order = await razorpayInstance.orders.create({
+        amount: Math.round(amount * 100), // Razorpay expects amount in paise
+        currency: "INR",
+        receipt: `order_${Date.now()}`,
+        notes: {
+          testIds: testIds.join(","),
+          phone: phone || "",
+          email: email || "",
+          name: name || "",
+        },
+      });
+
+      res.json({
+        orderId: order.id,
+        amount: order.amount,
+        currency: order.currency,
+        keyId: razorpayKeyId,
+      });
+    } catch (error) {
+      console.error("Error creating Razorpay order:", error);
+      res.status(500).json({ message: "Failed to create payment order" });
+    }
+  });
+
+  // Verify Razorpay payment
+  app.post("/api/payment/verify", async (req, res) => {
+    try {
+      if (!razorpayKeySecret) {
+        return res.status(503).json({ message: "Payment gateway not configured" });
+      }
+
+      const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+
+      if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+        return res.status(400).json({ message: "Missing payment verification details" });
+      }
+
+      // Verify signature
+      const body = razorpay_order_id + "|" + razorpay_payment_id;
+      const expectedSignature = createHmac("sha256", razorpayKeySecret)
+        .update(body)
+        .digest("hex");
+
+      if (expectedSignature !== razorpay_signature) {
+        return res.status(400).json({ message: "Invalid payment signature" });
+      }
+
+      res.json({
+        success: true,
+        message: "Payment verified successfully",
+        paymentId: razorpay_payment_id,
+        orderId: razorpay_order_id,
+      });
+    } catch (error) {
+      console.error("Error verifying payment:", error);
+      res.status(500).json({ message: "Payment verification failed" });
+    }
+  });
+
   // Create booking (public - allows guest bookings)
   app.post("/api/bookings", async (req, res) => {
     try {
-      const { patientId, guestName, phone, email, testIds, type, slot, paymentMethod, transactionId, amountPaid } = req.body;
+      const { patientId, guestName, phone, email, testIds, type, slot, paymentMethod, transactionId, amountPaid, razorpayOrderId, razorpayPaymentId } = req.body;
 
       if (!phone || !testIds || !type || !slot) {
         return res.status(400).json({ message: "Missing required fields" });
@@ -636,7 +739,9 @@ export async function registerRoutes(
 
       // Determine payment status based on method
       const isCashPayment = paymentMethod === 'cash_on_delivery' || paymentMethod === 'pay_at_lab';
-      const paymentStatus = isCashPayment ? paymentMethod : 'paid_unverified';
+      // If razorpay payment is verified, mark as verified
+      const isRazorpayVerified = razorpayPaymentId && razorpayOrderId;
+      const paymentStatus = isCashPayment ? paymentMethod : (isRazorpayVerified ? 'verified' : 'paid_unverified');
 
       const booking = await storage.createBooking({
         patientId: patientId || null,
@@ -650,6 +755,8 @@ export async function registerRoutes(
         paymentMethod,
         paymentStatus,
         transactionId: transactionId || null,
+        razorpayOrderId: razorpayOrderId || null,
+        razorpayPaymentId: razorpayPaymentId || null,
         amountPaid: amountPaid || null,
         paymentDate: new Date(),
       });
