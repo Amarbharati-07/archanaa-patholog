@@ -25,6 +25,7 @@ export interface IStorage {
   updatePatient(id: string, patient: Partial<InsertPatient>): Promise<Patient | undefined>;
   updatePatientFirebaseUid(id: string, firebaseUid: string): Promise<Patient | undefined>;
   updatePatientPassword(id: string, password: string): Promise<Patient | undefined>;
+  updatePatientEmailVerified(id: string, verified: boolean): Promise<Patient | undefined>;
 
   // Tests
   getTest(id: string): Promise<Test | undefined>;
@@ -62,6 +63,8 @@ export interface IStorage {
   // OTP
   createOtp(otp: InsertOtp): Promise<Otp>;
   verifyOtp(contact: string, otp: string, purpose: string): Promise<Otp | undefined>;
+  incrementOtpAttempts(id: string): Promise<number>;
+  getOtpByContact(contact: string, purpose: string): Promise<Otp | undefined>;
   deleteOtp(id: string): Promise<void>;
 
   // Admins
@@ -152,6 +155,11 @@ export class DatabaseStorage implements IStorage {
 
   async updatePatientPassword(id: string, password: string): Promise<Patient | undefined> {
     const [updated] = await db.update(patients).set({ password }).where(eq(patients.id, id)).returning();
+    return updated || undefined;
+  }
+
+  async updatePatientEmailVerified(id: string, verified: boolean): Promise<Patient | undefined> {
+    const [updated] = await db.update(patients).set({ emailVerified: verified }).where(eq(patients.id, id)).returning();
     return updated || undefined;
   }
 
@@ -316,6 +324,25 @@ export class DatabaseStorage implements IStorage {
 
   async deleteOtp(id: string): Promise<void> {
     await db.delete(otps).where(eq(otps.id, id));
+  }
+
+  async incrementOtpAttempts(id: string): Promise<number> {
+    const [updated] = await db.update(otps)
+      .set({ attempts: sql`${otps.attempts} + 1` })
+      .where(eq(otps.id, id))
+      .returning();
+    return updated?.attempts || 0;
+  }
+
+  async getOtpByContact(contact: string, purpose: string): Promise<Otp | undefined> {
+    const [otp] = await db.select().from(otps).where(
+      and(
+        eq(otps.contact, contact),
+        eq(otps.purpose, purpose),
+        gte(otps.expiresAt, new Date())
+      )
+    );
+    return otp || undefined;
   }
 
   // Admins

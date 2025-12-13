@@ -14,6 +14,7 @@ export const patients = pgTable("patients", {
   address: text("address"),
   password: text("password"),
   firebaseUid: text("firebase_uid"),
+  emailVerified: boolean("email_verified").notNull().default(false),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -63,6 +64,9 @@ export const bookings = pgTable("bookings", {
   paymentMethod: varchar("payment_method", { length: 50 }),
   paymentStatus: varchar("payment_status", { length: 50 }).notNull().default("pending"),
   transactionId: text("transaction_id"),
+  razorpayOrderId: text("razorpay_order_id"),
+  razorpayPaymentId: text("razorpay_payment_id"),
+  paymentScreenshot: text("payment_screenshot"),
   amountPaid: decimal("amount_paid", { precision: 10, scale: 2 }),
   paymentDate: timestamp("payment_date"),
   paymentVerifiedAt: timestamp("payment_verified_at"),
@@ -75,6 +79,7 @@ export const otps = pgTable("otps", {
   contact: text("contact").notNull(),
   otp: varchar("otp", { length: 6 }).notNull(),
   purpose: varchar("purpose", { length: 30 }).notNull(),
+  attempts: integer("attempts").notNull().default(0),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   expiresAt: timestamp("expires_at").notNull(),
 });
