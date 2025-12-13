@@ -506,11 +506,19 @@ export async function registerRoutes(
   // Create booking (public - allows guest bookings)
   app.post("/api/bookings", async (req, res) => {
     try {
-      const { patientId, guestName, phone, email, testIds, type, slot } = req.body;
+      const { patientId, guestName, phone, email, testIds, type, slot, paymentMethod, transactionId, amountPaid } = req.body;
 
       if (!phone || !testIds || !type || !slot) {
         return res.status(400).json({ message: "Missing required fields" });
       }
+
+      if (!paymentMethod) {
+        return res.status(400).json({ message: "Payment method is required" });
+      }
+
+      // Determine payment status based on method
+      const isCashPayment = paymentMethod === 'cash_on_delivery' || paymentMethod === 'pay_at_lab';
+      const paymentStatus = isCashPayment ? paymentMethod : 'paid_unverified';
 
       const booking = await storage.createBooking({
         patientId: patientId || null,
@@ -521,6 +529,11 @@ export async function registerRoutes(
         type,
         slot: new Date(slot),
         status: "pending",
+        paymentMethod,
+        paymentStatus,
+        transactionId: transactionId || null,
+        amountPaid: amountPaid || null,
+        paymentDate: new Date(),
       });
 
       res.json(booking);

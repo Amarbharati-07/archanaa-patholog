@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useLocation, useSearch } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Check, ChevronLeft, ChevronRight, Calendar as CalendarIcon, MapPin, Home as HomeIcon, IndianRupee } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Calendar as CalendarIcon, MapPin, Home as HomeIcon, IndianRupee, CreditCard, Smartphone, Building2, Wallet, Banknote, Building } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -16,11 +16,22 @@ import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
 import { useAuth } from "@/lib/auth-context";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { Test } from "@shared/schema";
+import type { Test, PaymentMethod } from "@shared/schema";
 
 const timeSlots = [
   "07:00 AM", "08:00 AM", "09:00 AM", "10:00 AM", "11:00 AM",
   "12:00 PM", "02:00 PM", "03:00 PM", "04:00 PM", "05:00 PM"
+];
+
+const paymentMethods: { value: PaymentMethod; label: string; icon: typeof CreditCard; description: string }[] = [
+  { value: "upi", label: "UPI", icon: Smartphone, description: "Pay using Google Pay, PhonePe, Paytm, etc." },
+  { value: "debit_card", label: "Debit Card", icon: CreditCard, description: "Pay using your debit card" },
+  { value: "credit_card", label: "Credit Card", icon: CreditCard, description: "Pay using your credit card" },
+  { value: "net_banking", label: "Net Banking", icon: Building2, description: "Pay using your bank's internet banking" },
+  { value: "wallet", label: "Wallet", icon: Wallet, description: "Pay using digital wallets" },
+  { value: "bank_transfer", label: "Bank Transfer", icon: Building, description: "Direct bank transfer (NEFT/IMPS/RTGS)" },
+  { value: "cash_on_delivery", label: "Cash on Delivery", icon: Banknote, description: "Pay when sample is collected at home" },
+  { value: "pay_at_lab", label: "Pay at Lab", icon: MapPin, description: "Pay when you visit our lab center" },
 ];
 
 export default function Book() {
@@ -35,6 +46,8 @@ export default function Book() {
   const [collectionType, setCollectionType] = useState<"pickup" | "walkin">("walkin");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [selectedTime, setSelectedTime] = useState<string>("");
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod | "">("");
+  const [transactionId, setTransactionId] = useState("");
   const [formData, setFormData] = useState({
     name: patient?.name || "",
     phone: patient?.phone || "",
@@ -55,6 +68,9 @@ export default function Book() {
       testIds: string[];
       type: string;
       slot: string;
+      paymentMethod: string;
+      transactionId?: string;
+      amountPaid: string;
     }) => {
       return apiRequest("POST", "/api/bookings", data);
     },
@@ -98,7 +114,7 @@ export default function Book() {
     );
   };
 
-  const handleSubmit = () => {
+  const handleProceedToPayment = () => {
     if (!selectedDate || !selectedTime) {
       toast({
         title: "Select Date & Time",
@@ -107,13 +123,27 @@ export default function Book() {
       });
       return;
     }
+    setStep(4);
+  };
 
-    const slotDate = new Date(selectedDate);
+  const handleSubmit = () => {
+    if (!selectedPaymentMethod) {
+      toast({
+        title: "Select Payment Method",
+        description: "Please select a payment method to proceed.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const slotDate = new Date(selectedDate!);
     const [time, period] = selectedTime.split(" ");
     let [hours, minutes] = time.split(":").map(Number);
     if (period === "PM" && hours !== 12) hours += 12;
     if (period === "AM" && hours === 12) hours = 0;
     slotDate.setHours(hours, minutes, 0, 0);
+
+    const requiresTransactionId = !["cash_on_delivery", "pay_at_lab"].includes(selectedPaymentMethod);
 
     bookingMutation.mutate({
       patientId: patient?.id,
@@ -123,12 +153,18 @@ export default function Book() {
       testIds: selectedTests,
       type: collectionType,
       slot: slotDate.toISOString(),
+      paymentMethod: selectedPaymentMethod,
+      transactionId: requiresTransactionId && transactionId ? transactionId : undefined,
+      amountPaid: totalPrice.toFixed(2),
     });
   };
 
   const canProceedStep1 = selectedTests.length > 0;
   const canProceedStep2 = formData.name && formData.phone;
   const canProceedStep3 = selectedDate && selectedTime;
+  const canProceedStep4 = selectedPaymentMethod !== "";
+
+  const requiresTransactionId = selectedPaymentMethod && !["cash_on_delivery", "pay_at_lab"].includes(selectedPaymentMethod);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -141,12 +177,12 @@ export default function Book() {
               Book a Test
             </h1>
             <p className="text-muted-foreground">
-              Select tests, provide your details, and choose a convenient time slot
+              Select tests, provide your details, choose a time slot, and select payment method
             </p>
           </div>
 
           <div className="flex items-center justify-between mb-8">
-            {[1, 2, 3].map((s) => (
+            {[1, 2, 3, 4].map((s) => (
               <div key={s} className="flex items-center">
                 <div
                   className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold ${
@@ -159,9 +195,9 @@ export default function Book() {
                   {step > s ? <Check className="h-5 w-5" /> : s}
                 </div>
                 <span className={`ml-2 hidden sm:block ${step >= s ? "text-foreground" : "text-muted-foreground"}`}>
-                  {s === 1 ? "Select Tests" : s === 2 ? "Your Details" : "Schedule"}
+                  {s === 1 ? "Tests" : s === 2 ? "Details" : s === 3 ? "Schedule" : "Payment"}
                 </span>
-                {s < 3 && <div className={`w-16 md:w-24 h-1 mx-2 ${step > s ? "bg-primary" : "bg-muted"}`} />}
+                {s < 4 && <div className={`w-8 md:w-16 h-1 mx-2 ${step > s ? "bg-primary" : "bg-muted"}`} />}
               </div>
             ))}
           </div>
@@ -428,12 +464,172 @@ export default function Book() {
                   Back
                 </Button>
                 <Button
+                  onClick={handleProceedToPayment}
+                  disabled={!canProceedStep3}
+                  className="gap-2"
+                  data-testid="button-proceed-to-payment"
+                >
+                  Proceed to Payment
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </CardFooter>
+            </Card>
+          )}
+
+          {step === 4 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <CreditCard className="h-5 w-5" />
+                  Select Payment Method
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="p-4 bg-muted rounded-lg">
+                  <div className="flex justify-between items-center">
+                    <span className="font-medium">Amount to Pay:</span>
+                    <span className="text-2xl font-bold flex items-center gap-1 text-primary">
+                      <IndianRupee className="h-5 w-5" />{totalPrice.toFixed(0)}
+                    </span>
+                  </div>
+                </div>
+
+                <RadioGroup
+                  value={selectedPaymentMethod}
+                  onValueChange={(v) => setSelectedPaymentMethod(v as PaymentMethod)}
+                  className="space-y-3"
+                >
+                  {paymentMethods.map((method) => {
+                    const IconComponent = method.icon;
+                    return (
+                      <label
+                        key={method.value}
+                        className={`flex items-center gap-4 p-4 rounded-lg border cursor-pointer transition-colors ${
+                          selectedPaymentMethod === method.value
+                            ? "border-primary bg-primary/5"
+                            : "border-border hover:bg-muted/50"
+                        }`}
+                        data-testid={`payment-method-${method.value}`}
+                      >
+                        <RadioGroupItem value={method.value} data-testid={`radio-payment-${method.value}`} />
+                        <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                          <IconComponent className="h-5 w-5 text-primary" />
+                        </div>
+                        <div className="flex-1">
+                          <div className="font-medium">{method.label}</div>
+                          <div className="text-sm text-muted-foreground">{method.description}</div>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </RadioGroup>
+
+                {requiresTransactionId && (
+                  <div className="space-y-2 p-4 bg-muted/50 rounded-lg border">
+                    <Label htmlFor="transactionId">Transaction/Reference ID (Optional)</Label>
+                    <Input
+                      id="transactionId"
+                      value={transactionId}
+                      onChange={(e) => setTransactionId(e.target.value)}
+                      placeholder="Enter your transaction or reference ID"
+                      data-testid="input-transaction-id"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      If you have already made the payment, enter the transaction ID for faster verification.
+                    </p>
+                  </div>
+                )}
+
+                {selectedPaymentMethod && (
+                  <div className="p-4 bg-primary/5 border border-primary/20 rounded-lg">
+                    <h4 className="font-semibold mb-2">Payment Instructions</h4>
+                    {selectedPaymentMethod === "upi" && (
+                      <p className="text-sm text-muted-foreground">
+                        You can pay using any UPI app (Google Pay, PhonePe, Paytm, etc.) to our UPI ID. 
+                        Your payment will be verified by our team.
+                      </p>
+                    )}
+                    {selectedPaymentMethod === "bank_transfer" && (
+                      <p className="text-sm text-muted-foreground">
+                        Transfer the amount to our bank account via NEFT/IMPS/RTGS. 
+                        Our team will verify your payment once received.
+                      </p>
+                    )}
+                    {(selectedPaymentMethod === "debit_card" || selectedPaymentMethod === "credit_card") && (
+                      <p className="text-sm text-muted-foreground">
+                        You will receive payment instructions via SMS/Email. 
+                        Your payment will be verified by our team.
+                      </p>
+                    )}
+                    {selectedPaymentMethod === "net_banking" && (
+                      <p className="text-sm text-muted-foreground">
+                        You will receive payment instructions via Email. 
+                        Please use your bank&apos;s internet banking to complete the payment.
+                      </p>
+                    )}
+                    {selectedPaymentMethod === "wallet" && (
+                      <p className="text-sm text-muted-foreground">
+                        You can pay using any digital wallet. 
+                        Our team will verify your payment once received.
+                      </p>
+                    )}
+                    {selectedPaymentMethod === "cash_on_delivery" && (
+                      <p className="text-sm text-muted-foreground">
+                        Pay in cash when our technician arrives at your home for sample collection. 
+                        Please keep the exact amount ready.
+                      </p>
+                    )}
+                    {selectedPaymentMethod === "pay_at_lab" && (
+                      <p className="text-sm text-muted-foreground">
+                        Pay at our lab center when you visit for the test. 
+                        We accept cash, UPI, and cards at the counter.
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                <div className="p-4 bg-muted rounded-lg space-y-3">
+                  <h4 className="font-semibold">Booking Summary</h4>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Tests:</span>
+                      <span>{selectedTestDetails.map((t) => t.name).join(", ")}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Appointment:</span>
+                      <span>{selectedDate && format(selectedDate, "PPP")} at {selectedTime}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Collection:</span>
+                      <span>{collectionType === "pickup" ? "Home Collection" : "Walk-in"}</span>
+                    </div>
+                    {selectedPaymentMethod && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Payment Method:</span>
+                        <span>{paymentMethods.find(m => m.value === selectedPaymentMethod)?.label}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between font-semibold pt-2 border-t">
+                      <span>Total Amount:</span>
+                      <span className="flex items-center gap-1">
+                        <IndianRupee className="h-4 w-4" />{totalPrice.toFixed(0)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+              <CardFooter className="justify-between gap-4">
+                <Button variant="outline" onClick={() => setStep(3)} className="gap-2" data-testid="button-back">
+                  <ChevronLeft className="h-4 w-4" />
+                  Back
+                </Button>
+                <Button
                   onClick={handleSubmit}
-                  disabled={!canProceedStep3 || bookingMutation.isPending}
+                  disabled={!canProceedStep4 || bookingMutation.isPending}
                   className="gap-2"
                   data-testid="button-confirm-booking"
                 >
-                  {bookingMutation.isPending ? "Booking..." : "Confirm Booking"}
+                  {bookingMutation.isPending ? "Confirming..." : "Confirm Booking"}
                 </Button>
               </CardFooter>
             </Card>
