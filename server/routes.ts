@@ -540,6 +540,25 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Report not found or link expired" });
       }
 
+      // Check payment status before allowing download
+      // For reports with a booking, verify payment status
+      if (report.bookingId) {
+        const booking = await storage.getBooking(report.bookingId);
+        if (!booking) {
+          return res.status(403).json({ 
+            message: "Unable to verify payment status. Please contact support." 
+          });
+        }
+        const allowedPaymentStatuses = ['verified', 'cash_on_delivery', 'pay_at_lab'];
+        if (!allowedPaymentStatuses.includes(booking.paymentStatus)) {
+          return res.status(403).json({ 
+            message: "Payment is not verified. Please complete your payment to access the report." 
+          });
+        }
+      }
+      // Reports without bookingId are legacy reports created before payment tracking
+      // These are allowed to be downloaded (admin-created reports)
+
       // In production, serve the actual PDF file
       // For now, generate a simple HTML response
       const patient = await storage.getPatient(report.patientId);
