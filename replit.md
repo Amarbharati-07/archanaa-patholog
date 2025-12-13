@@ -84,6 +84,18 @@ shared/           # Shared between client and server
 
 ## New Features
 
+### Payment Status Tracking
+- Comprehensive payment tracking system for bookings with multiple status types:
+  - `pending` - Payment not yet made
+  - `paid_unverified` - Payment submitted but awaiting admin verification
+  - `verified` - Payment confirmed by admin
+  - `cash_on_delivery` / `pay_at_lab` - Offline payment methods
+- Payment fields tracked: method, amount, transaction ID, payment date, verification timestamp
+- **User Dashboard**: Shows payment status badges, method, and verification status for each booking
+- **Admin Dashboard**: Payment filtering, full payment details view, and "Verify Payment" button for unverified payments
+- **Report Access Control**: Test reports are locked until payment is verified; blocked downloads show a popup message explaining payment requirement
+- **Server-side Security**: Download endpoint validates payment status before serving reports
+
 ### Customer Reviews
 - Visitors can submit reviews via dialog on homepage
 - Reviews require admin approval before becoming public
