@@ -678,9 +678,17 @@ export async function registerRoutes(
           const test = result ? await storage.getTest(result.testId) : null;
           
           // Find associated booking to check payment status
-          const associatedBooking = bookings.find(b => 
-            (b.testIds as string[]).some(testId => testId === result?.testId)
-          );
+          // First try to match by bookingId if available
+          let associatedBooking = report.bookingId 
+            ? bookings.find(b => b.id === report.bookingId)
+            : null;
+          
+          // Fallback: match by testId if no direct bookingId link
+          if (!associatedBooking && result?.testId) {
+            associatedBooking = bookings.find(b => 
+              (b.testIds as string[]).some(testId => testId === result.testId)
+            );
+          }
           
           const paymentVerified = associatedBooking?.paymentStatus === 'verified' || 
                                   associatedBooking?.paymentStatus === 'cash_on_delivery' ||
