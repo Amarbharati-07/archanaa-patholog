@@ -1,6 +1,7 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { User, Phone, Mail, Calendar, FileText, Clock, Download, MapPin, ChevronRight } from "lucide-react";
+import { User, Phone, Mail, Calendar, FileText, Clock, Download, MapPin, ChevronRight, CreditCard, CheckCircle, AlertCircle, Banknote } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,6 +11,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
 import { useAuth } from "@/lib/auth-context";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import type { Booking, Report, Test } from "@shared/schema";
 
 const statusColors: Record<string, string> = {
@@ -28,8 +38,42 @@ const statusLabels: Record<string, string> = {
   delivered: "Delivered",
 };
 
+const paymentStatusColors: Record<string, string> = {
+  pending: "bg-muted text-muted-foreground",
+  paid_unverified: "bg-warning text-warning-foreground",
+  verified: "bg-success text-success-foreground",
+  cash_on_delivery: "bg-info text-info-foreground",
+  pay_at_lab: "bg-info text-info-foreground",
+};
+
+const paymentStatusLabels: Record<string, string> = {
+  pending: "Payment Pending",
+  paid_unverified: "Payment Completed - Verification Pending",
+  verified: "Payment Completed",
+  cash_on_delivery: "Cash on Delivery",
+  pay_at_lab: "Pay at Lab",
+};
+
+const paymentMethodLabels: Record<string, string> = {
+  upi: "UPI",
+  debit_card: "Debit Card",
+  credit_card: "Credit Card",
+  net_banking: "Net Banking",
+  wallet: "Wallet",
+  bank_transfer: "Bank Transfer",
+  cash_on_delivery: "Cash on Delivery",
+  pay_at_lab: "Pay at Lab",
+};
+
+interface ExtendedReport extends Report {
+  test: Test;
+  paymentVerified?: boolean;
+  paymentStatus?: string;
+}
+
 export default function Dashboard() {
   const { patient } = useAuth();
+  const [showPaymentAlert, setShowPaymentAlert] = useState(false);
 
   const { data: bookings, isLoading: bookingsLoading } = useQuery<(Booking & { tests: Test[] })[]>({
     queryKey: ["/api/patient/bookings"],
@@ -40,7 +84,7 @@ export default function Dashboard() {
     enabled: !!patient,
   });
 
-  const { data: reports, isLoading: reportsLoading } = useQuery<(Report & { test: Test })[]>({
+  const { data: reports, isLoading: reportsLoading } = useQuery<ExtendedReport[]>({
     queryKey: ["/api/patient/reports"],
     refetchInterval: 5000,
     refetchOnWindowFocus: true,
@@ -48,6 +92,14 @@ export default function Dashboard() {
     refetchIntervalInBackground: true,
     enabled: !!patient,
   });
+
+  const handleReportDownload = (report: ExtendedReport) => {
+    if (!report.paymentVerified) {
+      setShowPaymentAlert(true);
+      return;
+    }
+    window.open(`/api/reports/download/${report.secureDownloadToken}`, '_blank');
+  };
 
   if (!patient) {
     return (
@@ -170,30 +222,84 @@ export default function Dashboard() {
                         {bookings.map((booking) => (
                           <div
                             key={booking.id}
-                            className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-lg border"
+                            className="p-4 rounded-lg border space-y-3"
                             data-testid={`booking-${booking.id}`}
                           >
-                            <div className="space-y-1">
-                              <div className="font-medium">
-                                {booking.tests?.map((t) => t.name).join(", ") || "Test Booking"}
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                              <div className="space-y-1">
+                                <div className="font-medium">
+                                  {booking.tests?.map((t) => t.name).join(", ") || "Test Booking"}
+                                </div>
+                                <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                                  <div className="flex items-center gap-1">
+                                    <Calendar className="h-3 w-3" />
+                                    {format(new Date(booking.slot), "PPP")}
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <Clock className="h-3 w-3" />
+                                    {format(new Date(booking.slot), "p")}
+                                  </div>
+                                  <Badge variant="outline">
+                                    {booking.type === "pickup" ? "Home Collection" : "Walk-in"}
+                                  </Badge>
+                                </div>
                               </div>
-                              <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                                <div className="flex items-center gap-1">
-                                  <Calendar className="h-3 w-3" />
-                                  {format(new Date(booking.slot), "PPP")}
+                              <Badge className={statusColors[booking.status] || "bg-muted"}>
+                                {statusLabels[booking.status] || booking.status}
+                              </Badge>
+                            </div>
+
+                            {/* Payment Status Section */}
+                            <div className="pt-3 border-t">
+                              <div className="flex items-center gap-2 mb-2">
+                                <CreditCard className="h-4 w-4 text-muted-foreground" />
+                                <span className="text-sm font-medium">Payment Details</span>
+                              </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-muted-foreground">Status:</span>
+                                  <Badge 
+                                    className={paymentStatusColors[booking.paymentStatus || 'pending'] || "bg-muted"}
+                                    data-testid={`payment-status-${booking.id}`}
+                                  >
+                                    {booking.paymentStatus === 'verified' && <CheckCircle className="h-3 w-3 mr-1" />}
+                                    {booking.paymentStatus === 'paid_unverified' && <AlertCircle className="h-3 w-3 mr-1" />}
+                                    {(booking.paymentStatus === 'cash_on_delivery' || booking.paymentStatus === 'pay_at_lab') && <Banknote className="h-3 w-3 mr-1" />}
+                                    {paymentStatusLabels[booking.paymentStatus || 'pending'] || 'Payment Pending'}
+                                  </Badge>
                                 </div>
-                                <div className="flex items-center gap-1">
-                                  <Clock className="h-3 w-3" />
-                                  {format(new Date(booking.slot), "p")}
-                                </div>
-                                <Badge variant="outline">
-                                  {booking.type === "pickup" ? "Home Collection" : "Walk-in"}
-                                </Badge>
+                                {booking.paymentMethod && (
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-muted-foreground">Method:</span>
+                                    <span>{paymentMethodLabels[booking.paymentMethod] || booking.paymentMethod}</span>
+                                  </div>
+                                )}
+                                {booking.amountPaid && (
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-muted-foreground">Amount:</span>
+                                    <span className="font-medium">Rs. {booking.amountPaid}</span>
+                                  </div>
+                                )}
+                                {booking.transactionId && (
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-muted-foreground">Transaction ID:</span>
+                                    <span className="font-mono text-xs">{booking.transactionId}</span>
+                                  </div>
+                                )}
+                                {booking.paymentDate && (
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-muted-foreground">Payment Date:</span>
+                                    <span>{format(new Date(booking.paymentDate), "PPp")}</span>
+                                  </div>
+                                )}
+                                {booking.paymentVerifiedAt && (
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-muted-foreground">Verified At:</span>
+                                    <span>{format(new Date(booking.paymentVerifiedAt), "PPp")}</span>
+                                  </div>
+                                )}
                               </div>
                             </div>
-                            <Badge className={statusColors[booking.status] || "bg-muted"}>
-                              {statusLabels[booking.status] || booking.status}
-                            </Badge>
                           </div>
                         ))}
                       </div>
@@ -234,17 +340,24 @@ export default function Dashboard() {
                                 <Calendar className="h-3 w-3" />
                                 {format(new Date(report.generatedAt), "PPP")}
                               </div>
+                              {!report.paymentVerified && (
+                                <Badge className="bg-warning text-warning-foreground mt-1">
+                                  <AlertCircle className="h-3 w-3 mr-1" />
+                                  {paymentStatusLabels[report.paymentStatus || 'pending']}
+                                </Badge>
+                              )}
                             </div>
-                            <a
-                              href={`/api/reports/download/${report.secureDownloadToken}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
+                            <Button 
+                              variant={report.paymentVerified ? "outline" : "secondary"}
+                              size="sm" 
+                              className="gap-2" 
+                              data-testid={`button-download-${report.id}`}
+                              onClick={() => handleReportDownload(report)}
+                              disabled={!report.paymentVerified}
                             >
-                              <Button variant="outline" size="sm" className="gap-2" data-testid={`button-download-${report.id}`}>
-                                <Download className="h-4 w-4" />
-                                Download
-                              </Button>
-                            </a>
+                              <Download className="h-4 w-4" />
+                              {report.paymentVerified ? "Download" : "Locked"}
+                            </Button>
                           </div>
                         ))}
                       </div>
@@ -266,6 +379,23 @@ export default function Dashboard() {
       </main>
 
       <Footer />
+
+      <AlertDialog open={showPaymentAlert} onOpenChange={setShowPaymentAlert}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-warning" />
+              Payment Required
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Your payment is not completed yet. Please complete your payment or wait for verification to access the report.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction data-testid="button-close-payment-alert">Okay</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
