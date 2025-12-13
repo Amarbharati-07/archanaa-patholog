@@ -56,10 +56,23 @@ shared/           # Shared between client and server
 ```
 
 ### Authentication Flow
-1. Patient registration/login uses Firebase phone authentication
-2. Firebase ID token is verified server-side (when Firebase Admin is configured)
-3. Server issues JWT token for subsequent API requests
-4. Admin authentication uses traditional username/password with JWT
+**Patient Authentication (Email/Password - Primary Method):**
+1. Registration: Full name, email (required), phone, password, confirm password, DOB, gender
+2. Login: Email and password authentication
+3. Password Reset: Email verification with OTP for password reset
+4. Server issues JWT token for 7-day sessions
+
+**Legacy Firebase Phone OTP (Still Available):**
+- Firebase phone authentication endpoints remain for backward compatibility
+
+**Admin Authentication:**
+- Traditional username/password with JWT (24-hour sessions)
+
+**API Endpoints:**
+- `POST /api/auth/register-email` - Email/password registration
+- `POST /api/auth/login-email` - Email/password login  
+- `POST /api/auth/forgot-password` - Request password reset OTP
+- `POST /api/auth/reset-password` - Reset password with OTP
 
 ### Key Design Decisions
 - **Shared Schema**: Database types are defined once in `shared/schema.ts` and used by both frontend and backend
