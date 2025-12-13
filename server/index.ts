@@ -24,6 +24,8 @@ app.use(
 
 app.use(express.urlencoded({ extended: false }));
 
+app.use("/uploads", express.static("uploads"));
+
 export const log = (message: string, source = "express") => {
   console.log(`${new Date().toLocaleTimeString()} [${source}] ${message}`);
 };

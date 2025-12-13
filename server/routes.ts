@@ -6,6 +6,39 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { z } from "zod";
 import { verifyFirebaseToken } from "./firebase-admin";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
+
+const uploadsDir = path.join(process.cwd(), "uploads", "banners");
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+const bannerStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadsDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    cb(null, "banner-" + uniqueSuffix + path.extname(file.originalname));
+  },
+});
+
+const uploadBanner = multer({
+  storage: bannerStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = /jpeg|jpg|png|gif|webp/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+    if (extname && mimetype) {
+      cb(null, true);
+    } else {
+      cb(new Error("Only image files are allowed"));
+    }
+  },
+});
 
 const JWT_SECRET = process.env.SESSION_SECRET || "archana-pathology-secret-key";
 
@@ -745,10 +778,24 @@ export async function registerRoutes(
     }
   });
 
+  // Upload banner image (admin)
+  app.post("/api/admin/upload-banner", authenticateToken, adminOnly, uploadBanner.single("banner"), (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+      const imageUrl = `/uploads/banners/${req.file.filename}`;
+      res.json({ imageUrl });
+    } catch (error) {
+      console.error("Error uploading banner:", error);
+      res.status(500).json({ message: "Failed to upload banner" });
+    }
+  });
+
   // Create advertisement (admin)
   app.post("/api/admin/advertisements", authenticateToken, adminOnly, async (req, res) => {
     try {
-      const { title, subtitle, description, gradient, icon, ctaText, ctaLink, isActive, sortOrder } = req.body;
+      const { title, subtitle, description, gradient, icon, imageUrl, ctaText, ctaLink, isActive, sortOrder } = req.body;
 
       if (!title || !subtitle || !description || !gradient || !icon || !ctaText || !ctaLink) {
         return res.status(400).json({ message: "All fields are required" });
@@ -760,6 +807,7 @@ export async function registerRoutes(
         description,
         gradient,
         icon,
+        imageUrl: imageUrl || null,
         ctaText,
         ctaLink,
         isActive: isActive !== undefined ? isActive : true,

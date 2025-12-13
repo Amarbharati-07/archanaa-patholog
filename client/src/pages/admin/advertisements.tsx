@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Megaphone, Plus, Trash2, Check, X, Edit } from "lucide-react";
+import { Megaphone, Plus, Trash2, Check, X, Edit, Upload, Image } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -53,13 +53,17 @@ const iconOptions = [
 export default function AdminAdvertisements() {
   const { toast } = useToast();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isBannerDialogOpen, setIsBannerDialogOpen] = useState(false);
   const [editingAd, setEditingAd] = useState<Advertisement | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState({
     title: "",
     subtitle: "",
     description: "",
     gradient: "from-blue-600 to-cyan-500",
     icon: "FlaskConical",
+    imageUrl: "",
     ctaText: "Learn More",
     ctaLink: "/tests",
     isActive: true,
@@ -129,6 +133,7 @@ export default function AdminAdvertisements() {
       description: "",
       gradient: "from-blue-600 to-cyan-500",
       icon: "FlaskConical",
+      imageUrl: "",
       ctaText: "Learn More",
       ctaLink: "/tests",
       isActive: true,
@@ -144,11 +149,51 @@ export default function AdminAdvertisements() {
       description: ad.description,
       gradient: ad.gradient,
       icon: ad.icon,
+      imageUrl: ad.imageUrl || "",
       ctaText: ad.ctaText,
       ctaLink: ad.ctaLink,
       isActive: ad.isActive,
       sortOrder: ad.sortOrder,
     });
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    const formDataUpload = new FormData();
+    formDataUpload.append("banner", file);
+
+    try {
+      const token = localStorage.getItem("adminToken");
+      const response = await fetch("/api/admin/upload-banner", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formDataUpload,
+      });
+
+      if (!response.ok) {
+        throw new Error("Upload failed");
+      }
+
+      const data = await response.json();
+      setFormData((prev) => ({ ...prev, imageUrl: data.imageUrl }));
+      toast({ title: "Image Uploaded", description: "Banner image uploaded successfully." });
+    } catch (error) {
+      toast({ title: "Upload Failed", description: "Failed to upload image.", variant: "destructive" });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const clearImage = () => {
+    setFormData((prev) => ({ ...prev, imageUrl: "" }));
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
   };
 
   const handleSubmit = () => {
@@ -263,6 +308,53 @@ export default function AdminAdvertisements() {
                     </Select>
                   </div>
                 </div>
+                <div className="space-y-2">
+                  <Label>Banner Image (Optional)</Label>
+                  <p className="text-xs text-muted-foreground">Upload a custom poster or banner image. If uploaded, this will be displayed instead of the gradient background.</p>
+                  <div className="flex items-center gap-2">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFileUpload}
+                      className="hidden"
+                      data-testid="input-ad-banner-file"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isUploading}
+                      className="gap-2"
+                      data-testid="button-upload-banner"
+                    >
+                      <Upload className="h-4 w-4" />
+                      {isUploading ? "Uploading..." : "Upload Banner"}
+                    </Button>
+                    {formData.imageUrl && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={clearImage}
+                        data-testid="button-clear-image"
+                      >
+                        <X className="h-4 w-4 mr-1" />
+                        Clear
+                      </Button>
+                    )}
+                  </div>
+                  {formData.imageUrl && (
+                    <div className="mt-2 relative rounded-lg overflow-hidden">
+                      <img
+                        src={formData.imageUrl}
+                        alt="Banner Preview"
+                        className="w-full h-32 object-cover rounded-lg"
+                        data-testid="img-banner-preview"
+                      />
+                    </div>
+                  )}
+                </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="ctaText">Button Text</Label>
@@ -309,7 +401,11 @@ export default function AdminAdvertisements() {
                 </div>
                 <div className="pt-4">
                   <Label>Preview</Label>
-                  <div className={`relative overflow-hidden rounded-lg bg-gradient-to-r ${formData.gradient} p-6 mt-2`}>
+                  <div 
+                    className={`relative overflow-hidden rounded-lg p-6 mt-2 ${formData.imageUrl ? "" : `bg-gradient-to-r ${formData.gradient}`}`}
+                    style={formData.imageUrl ? { backgroundImage: `url(${formData.imageUrl})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}
+                  >
+                    {formData.imageUrl && <div className="absolute inset-0 bg-black/40" />}
                     <div className="relative z-10">
                       <p className="text-white/80 text-sm font-medium mb-1">{formData.subtitle || "Subtitle"}</p>
                       <h3 className="text-white text-xl font-bold mb-2">{formData.title || "Title"}</h3>
@@ -361,10 +457,22 @@ export default function AdminAdvertisements() {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <div className={`relative overflow-hidden rounded-lg bg-gradient-to-r ${ad.gradient} p-4`}>
-                    <p className="text-white/80 text-xs">{ad.subtitle}</p>
-                    <p className="text-white text-sm font-medium">{ad.title}</p>
-                    <p className="text-white/80 text-xs mt-1 line-clamp-2">{ad.description}</p>
+                  <div 
+                    className={`relative overflow-hidden rounded-lg p-4 ${ad.imageUrl ? "" : `bg-gradient-to-r ${ad.gradient}`}`}
+                    style={ad.imageUrl ? { backgroundImage: `url(${ad.imageUrl})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}
+                  >
+                    {ad.imageUrl && <div className="absolute inset-0 bg-black/40" />}
+                    <div className="relative z-10">
+                      <p className="text-white/80 text-xs">{ad.subtitle}</p>
+                      <p className="text-white text-sm font-medium">{ad.title}</p>
+                      <p className="text-white/80 text-xs mt-1 line-clamp-2">{ad.description}</p>
+                    </div>
+                    {ad.imageUrl && (
+                      <Badge variant="secondary" className="absolute top-2 right-2 text-xs">
+                        <Image className="h-3 w-3 mr-1" />
+                        Custom Banner
+                      </Badge>
+                    )}
                   </div>
                   <div className="flex items-center justify-between gap-2 pt-2">
                     <div className="text-sm text-muted-foreground">

@@ -97,6 +97,7 @@ export const advertisements = pgTable("advertisements", {
   description: text("description").notNull(),
   gradient: varchar("gradient", { length: 100 }).notNull(),
   icon: varchar("icon", { length: 50 }).notNull(),
+  imageUrl: text("image_url"),
   ctaText: text("cta_text").notNull(),
   ctaLink: text("cta_link").notNull(),
   isActive: boolean("is_active").notNull().default(true),
