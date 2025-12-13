@@ -4,7 +4,7 @@ const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
     user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_APP_PASSWORD,
+    pass: process.env.EMAIL_PASS,
   },
 });
 
@@ -53,7 +53,7 @@ export async function sendOtpEmail(to: string, otp: string, purpose: string): Pr
   `;
 
   try {
-    if (!process.env.EMAIL_USER || !process.env.EMAIL_APP_PASSWORD) {
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
       console.log(`[DEV MODE] Email OTP for ${to}: ${otp}`);
       return true;
     }

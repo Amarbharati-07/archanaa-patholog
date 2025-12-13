@@ -27,36 +27,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    // First, restore session from localStorage (for email/password auth)
+    const storedPatient = localStorage.getItem("patient");
+    const storedToken = localStorage.getItem("token");
+    if (storedPatient && storedToken) {
+      try {
+        setPatient(JSON.parse(storedPatient));
+      } catch (e) {
+        localStorage.removeItem("patient");
+        localStorage.removeItem("token");
+      }
+    }
+    
+    const storedAdmin = localStorage.getItem("admin");
+    const storedAdminToken = localStorage.getItem("adminToken");
+    if (storedAdmin && storedAdminToken) {
+      try {
+        setAdmin(JSON.parse(storedAdmin));
+      } catch (e) {
+        localStorage.removeItem("admin");
+        localStorage.removeItem("adminToken");
+      }
+    }
+
+    // Then listen to Firebase auth state changes (for Firebase auth)
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
-      
-      if (firebaseUser) {
-        const storedPatient = localStorage.getItem("patient");
-        if (storedPatient) {
-          try {
-            setPatient(JSON.parse(storedPatient));
-          } catch (e) {
-            localStorage.removeItem("patient");
-          }
-        }
-      } else {
-        setPatient(null);
-        localStorage.removeItem("patient");
-      }
-      
-      const storedAdmin = localStorage.getItem("admin");
-      if (storedAdmin) {
-        try {
-          setAdmin(JSON.parse(storedAdmin));
-        } catch (e) {
-          localStorage.removeItem("admin");
-        }
-      }
-      
       setIsLoading(false);
     });
 
-    return () => unsubscribe();
+    // Set loading to false immediately if no Firebase auth needed
+    const timeout = setTimeout(() => {
+      setIsLoading(false);
+    }, 500);
+
+    return () => {
+      unsubscribe();
+      clearTimeout(timeout);
+    };
   }, []);
 
   const loginPatient = (patientData: Patient, token: string) => {
