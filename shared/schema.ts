@@ -44,6 +44,7 @@ export const reports = pgTable("reports", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   patientId: varchar("patient_id").references(() => patients.id).notNull(),
   resultId: varchar("result_id").references(() => results.id).notNull(),
+  bookingId: varchar("booking_id").references(() => bookings.id),
   pdfPath: text("pdf_path"),
   secureDownloadToken: text("secure_download_token").notNull().unique(),
   generatedAt: timestamp("generated_at").defaultNow().notNull(),
@@ -59,6 +60,13 @@ export const bookings = pgTable("bookings", {
   type: varchar("type", { length: 20 }).notNull(),
   slot: timestamp("slot").notNull(),
   status: varchar("status", { length: 30 }).notNull().default("pending"),
+  paymentMethod: varchar("payment_method", { length: 50 }),
+  paymentStatus: varchar("payment_status", { length: 50 }).notNull().default("pending"),
+  transactionId: text("transaction_id"),
+  amountPaid: decimal("amount_paid", { precision: 10, scale: 2 }),
+  paymentDate: timestamp("payment_date"),
+  paymentVerifiedAt: timestamp("payment_verified_at"),
+  paymentVerifiedBy: varchar("payment_verified_by").references(() => admins.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -185,3 +193,9 @@ export type InsertAdvertisement = z.infer<typeof insertAdvertisementSchema>;
 
 export const bookingStatuses = ["pending", "collected", "processing", "report_ready", "delivered"] as const;
 export type BookingStatus = typeof bookingStatuses[number];
+
+export const paymentStatuses = ["pending", "paid_unverified", "verified", "cash_on_delivery", "pay_at_lab"] as const;
+export type PaymentStatus = typeof paymentStatuses[number];
+
+export const paymentMethods = ["upi", "debit_card", "credit_card", "net_banking", "wallet", "bank_transfer", "cash_on_delivery", "pay_at_lab"] as const;
+export type PaymentMethod = typeof paymentMethods[number];
