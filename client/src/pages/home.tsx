@@ -58,32 +58,32 @@ const features = [
 
 const customerReviews = [
   {
-    name: "Priya Sharma",
-    initials: "PS",
+    name: "Aman Bharati",
+    initials: "PB",
     rating: 5,
     review: "Excellent service! The home collection was on time and the staff was very professional. Got my reports within 24 hours.",
     location: "Mumbai",
   },
   {
-    name: "Rajesh Kumar",
-    initials: "RK",
-    rating: 5,
+    name: "Karan Prasad",
+    initials: "KP",
+    rating: 4.5,
     review: "Very impressed with the accuracy and quick turnaround. The online booking system made everything so convenient.",
-    location: "Delhi",
+    location: "Dombivali",
   },
   {
-    name: "Anita Desai",
-    initials: "AD",
+    name: "Lalu Singh",
+    initials: "LS",
     rating: 5,
     review: "Best diagnostic center in the city. The prices are reasonable and the quality of service is top-notch.",
-    location: "Bangalore",
+    location: "Palawa,Dombivali",
   },
   {
-    name: "Vikram Singh",
-    initials: "VS",
+    name: "Vikram Chauhan",
+    initials: "VC",
     rating: 4,
     review: "Great experience overall. The technician was skilled and made the blood collection painless. Highly recommend!",
-    location: "Pune",
+    location: "Kopar",
   },
 ];
 

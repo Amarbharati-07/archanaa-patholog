@@ -48,7 +48,7 @@ export function Footer() {
                 data-testid="link-phone"
               >
                 <Phone className="h-4 w-4 text-primary" />
-                +91 98765 43210
+                +91 86919 50617
               </a>
               <a 
                 href="mailto:info@archanapathology.com" 
@@ -56,11 +56,11 @@ export function Footer() {
                 data-testid="link-email"
               >
                 <Mail className="h-4 w-4 text-primary" />
-                info@archanapathology.com
+                amarbharati289@gmail.com
               </a>
               <div className="flex items-start gap-2 text-muted-foreground text-sm">
                 <MapPin className="h-4 w-4 text-primary mt-0.5" />
-                <span>123 Health Street, Medical District, New Delhi - 110001</span>
+                <span> Shop NO:1 Bhal Goun HagiMalang Road kalyan East , Thane, Maharastra - 421306</span>
               </div>
             </div>
           </div>

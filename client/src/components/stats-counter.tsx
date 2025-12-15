@@ -2,10 +2,10 @@ import { useEffect, useState, useRef } from "react";
 import { Users, FlaskConical, Award, Clock } from "lucide-react";
 
 const stats = [
-  { icon: FlaskConical, label: "Tests Conducted", value: 50000, suffix: "+" },
-  { icon: Users, label: "Happy Patients", value: 15000, suffix: "+" },
-  { icon: Award, label: "Years of Service", value: 15, suffix: "" },
-  { icon: Clock, label: "Reports Delivered", value: 48000, suffix: "+" },
+  { icon: FlaskConical, label: "Tests Conducted", value: 10000, suffix: "+" },
+  { icon: Users, label: "Happy Patients", value: 9874, suffix: "+" },
+  { icon: Award, label: "Years of Service", value: 5, suffix: "" },
+  { icon: Clock, label: "Reports Delivered", value: 12586, suffix: "+" },
 ];
 
 function useCountUp(end: number, duration: number = 2000, start: boolean = false) {

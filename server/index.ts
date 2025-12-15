@@ -3,29 +3,33 @@ import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import { seedDatabase } from "./seed";
-import "dotenv/config";
+import dotenv from "dotenv";
+
+dotenv.config(); // ✅ VERY IMPORTANT
 
 const app = express();
 const httpServer = createServer(app);
 
+/* ================= RAW BODY SUPPORT ================= */
 declare module "http" {
   interface IncomingMessage {
-    rawBody: unknown;
+    rawBody: Buffer;
   }
 }
 
+/* ================= MIDDLEWARE ================= */
 app.use(
   express.json({
-    verify: (req, _res, buf) => {
+    verify: (req: any, _res, buf) => {
       req.rawBody = buf;
     },
   })
 );
 
 app.use(express.urlencoded({ extended: false }));
-
 app.use("/uploads", express.static("uploads"));
 
+/* ================= LOGGER ================= */
 export const log = (message: string, source = "express") => {
   console.log(`${new Date().toLocaleTimeString()} [${source}] ${message}`);
 };
@@ -34,20 +38,20 @@ app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
 
-  let capturedJsonResponse: any = undefined;
+  let capturedJsonResponse: any;
 
-  const originalJson = res.json;
-  res.json = function (body, ...args) {
+  const originalJson = res.json.bind(res);
+  res.json = (body: any) => {
     capturedJsonResponse = body;
-    return originalJson.apply(res, [body, ...args]);
+    return originalJson(body);
   };
 
   res.on("finish", () => {
     if (path.startsWith("/api")) {
       log(
-        `${req.method} ${path} ${res.statusCode} in ${Date.now() - start}ms :: ${JSON.stringify(
-          capturedJsonResponse
-        )}`
+        `${req.method} ${path} ${res.statusCode} in ${Date.now() - start}ms :: ${
+          capturedJsonResponse ? JSON.stringify(capturedJsonResponse) : ""
+        }`
       );
     }
   });
@@ -55,28 +59,42 @@ app.use((req, res, next) => {
   next();
 });
 
+/* ================= MAIN BOOTSTRAP ================= */
 (async () => {
-  await registerRoutes(httpServer, app);
-  await seedDatabase();
+  try {
+    // ✅ Register all API routes (auth, otp, payment, admin, etc.)
+    await registerRoutes(httpServer, app);
 
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    res.status(err.status || 500).json({ message: err.message });
-  });
+    // ✅ Seed DB (safe, idempotent)
+    await seedDatabase();
 
-  if (process.env.NODE_ENV === "production") {
-    serveStatic(app);
-  } else {
-    const { setupVite } = await import("./vite");
-    await setupVite(httpServer, app);
+    // ✅ Global error handler
+    app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+      console.error("❌ Server Error:", err);
+      res.status(err.status || 500).json({
+        message: err.message || "Internal Server Error",
+      });
+    });
+
+    // ✅ Frontend handling
+    if (process.env.NODE_ENV === "production") {
+      serveStatic(app);
+    } else {
+      const { setupVite } = await import("./vite");
+      await setupVite(httpServer, app);
+    }
+
+    const port = parseInt(process.env.PORT || "5000", 10);
+
+    httpServer.listen(
+      {
+        port,
+        host: "0.0.0.0",
+      },
+      () => log(`Server running at http://localhost:${port}`)
+    );
+  } catch (err) {
+    console.error("❌ Failed to start server:", err);
+    process.exit(1);
   }
-
-  const port = parseInt(process.env.PORT || "5000", 10);
-
-  httpServer.listen(
-    {
-      port,
-      host: "0.0.0.0",
-    },
-    () => log(`Server running at http://localhost:${port}`)
-  );
 })();
